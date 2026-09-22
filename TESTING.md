@@ -1,23 +1,23 @@
-# Arise Admin — Testing Guide
+# HunterX Admin — Testing Guide
 
 This covers the backend build-out and the frontend wiring done in this pass:
 the admin portal previously ran entirely on mock data (every `lib/api/*.ts`
 function had a `// TODO: API` comment); it now talks to a real backend
-(`Arise-Backend`, built from scratch) for every page. Everything below was
+(`HunterX-Backend`, built from scratch) for every page. Everything below was
 verified end-to-end in a real browser before being written up — not assumed.
 
 ## 1. What changed
 
-### New: the backend (`../Arise-Backend`)
+### New: the backend (`../HunterX-Backend`)
 
 A full Node/Express/TypeScript API, built to the exact contracts the frontend
 already specified in its `TODO: API` comments — JWT auth (login/refresh/
 logout), dashboard analytics, users, and tasks. It runs today against an
 in-memory data store (no Supabase project exists yet) and is also
 code-complete against a real Supabase/Postgres schema
-(`Arise-Backend/supabase/migrations/0001_init.sql`), switchable with one env
+(`HunterX-Backend/supabase/migrations/0001_init.sql`), switchable with one env
 var once you have Supabase credentials. Full API reference, setup, and a
-42-check automated smoke test: **`Arise-Backend/TESTING.md`**.
+42-check automated smoke test: **`HunterX-Backend/TESTING.md`**.
 
 ### Changed: the frontend (`lib/api/*.ts`, `lib/auth/actions.ts`)
 
@@ -49,25 +49,25 @@ Two terminals:
 
 ```bash
 # Terminal 1 — backend
-cd Arise-Backend
+cd HunterX-Backend
 npm install
 cp .env.example .env
 npm run dev              # listens on http://localhost:4000
 
 # Terminal 2 — frontend
-cd Arise-Admin
+cd HunterX-Admin
 npm install
 npm run dev              # listens on http://localhost:3000
 ```
 
-No `.env.local` changes needed in `Arise-Admin` — `config/env.ts` already
+No `.env.local` changes needed in `HunterX-Admin` — `config/env.ts` already
 defaults `NEXT_PUBLIC_API_URL` to `http://localhost:4000/api/v1`, matching
 the backend's default port.
 
 Open `http://localhost:3000/login` and sign in with:
 
 ```
-email:    admin@arise.com
+email:    admin@hunterx.com
 password: admin123
 ```
 
@@ -142,7 +142,7 @@ Do this once against the two servers from §2, freshly started.
 
 ### Auth
 1. Go to `/login`. Try a wrong password → inline error, stays on the page.
-2. Log in with `admin@arise.com` / `admin123` → redirected to `/` (Dashboard).
+2. Log in with `admin@hunterx.com` / `admin123` → redirected to `/` (Dashboard).
 3. Reload any page → still logged in (session cookie persists).
 4. Click your profile → Logout → redirected to `/login`; trying to visit `/`
    directly now redirects back to `/login` (this is `proxy.ts`'s route guard).
@@ -189,7 +189,7 @@ Do this once against the two servers from §2, freshly started.
   the backend runs on its in-memory driver (resets on restart — that's why
   "fresh restart" is called out above, not a bug). The Supabase-backed code
   path is written and type-checked but has never talked to a real database.
-  Setup steps for when you're ready: `Arise-Backend/TESTING.md` §"Switching
+  Setup steps for when you're ready: `HunterX-Backend/TESTING.md` §"Switching
   to real Supabase later".
 - **Mobile-app-facing endpoints are out of scope here** (XP engine beyond
   manual admin adjustment, rewards/wallet, leaderboards, notifications, cron

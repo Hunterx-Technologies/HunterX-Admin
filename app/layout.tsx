@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Arise Admin — Habit Gamification Dashboard",
-  description: "Admin portal for managing users, tasks, and progression in the Arise habit gamification ecosystem.",
+  title: "HunterX Admin — Habit Gamification Dashboard",
+  description: "Admin portal for managing users, tasks, and progression in the HunterX habit gamification ecosystem.",
 };
 
 export default function RootLayout({
@@ -33,7 +33,7 @@ export default function RootLayout({
       <head>
         <InlineScript
           id="theme-init"
-          html={`(function(){try{var t=localStorage.getItem("theme");if(t==="light")document.documentElement.setAttribute("data-theme","light");var a=localStorage.getItem("accentColor");if(a&&a!=="violet")document.documentElement.setAttribute("data-accent",a)}catch(e){}})()`}
+          html={`(function(){try{var t=localStorage.getItem("theme");if(!t){t=(window.matchMedia&&window.matchMedia("(prefers-color-scheme: light)").matches)?"light":"dark"}document.documentElement.setAttribute("data-theme",t);var a=localStorage.getItem("accentColor");if(a&&a!=="violet")document.documentElement.setAttribute("data-accent",a)}catch(e){}})()`}
         />
       </head>
       <body className="min-h-full flex flex-col bg-app text-ink">{children}</body>

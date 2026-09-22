@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { DropdownMenu, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { AccentColorDialog } from '@/components/accent-color-dialog';
+import { SessionTimeoutModal } from '@/components/session-timeout-modal';
 import type { User } from '@/types/user';
 import type { Task } from '@/types/task';
 import {
@@ -215,7 +216,7 @@ export default function DashboardLayout({
           <div className="w-8 h-8 rounded-lg bg-accent/15 flex items-center justify-center border border-accent/20">
             <Sparkles className="w-4 h-4 text-accent-ink" />
           </div>
-          <span className="font-bold tracking-tight text-ink">Arise Control</span>
+          <span className="font-bold tracking-tight text-ink">HunterX Control</span>
         </div>
 
         <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
@@ -271,7 +272,7 @@ export default function DashboardLayout({
             <div className="w-8 h-8 rounded-lg bg-accent/15 flex items-center justify-center border border-accent/20">
               <Sparkles className="w-4 h-4 text-accent-ink" />
             </div>
-            <span className="font-bold tracking-tight text-ink">Arise Control</span>
+            <span className="font-bold tracking-tight text-ink">HunterX Control</span>
           </div>
           <button
             onClick={() => setSidebarOpen(false)}
@@ -374,6 +375,7 @@ export default function DashboardLayout({
       </div>
 
       <AccentColorDialog open={themeColorOpen} onClose={() => setThemeColorOpen(false)} />
+      <SessionTimeoutModal />
     </div>
   );
 }

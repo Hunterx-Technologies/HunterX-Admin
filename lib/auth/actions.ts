@@ -26,7 +26,7 @@ function parseJwtPayload(token: string): Record<string, any> | null {
   }
 }
 
-const DEV_MOCK_CREDENTIALS = { email: 'admin@arise.com', password: 'admin123' };
+const DEV_MOCK_CREDENTIALS = { email: 'admin@hunterx.com', password: 'admin123' };
 
 function buildDevMockUser(): User {
   return {
@@ -191,4 +191,62 @@ export async function getSessionUser(): Promise<User | null> {
     return null;
   }
 }
+
+export async function refreshTokenAction() {
+  const cookieStore = await cookies();
+  const refreshToken = cookieStore.get('refresh_token')?.value;
+
+  if (!refreshToken) {
+    return { success: false, error: 'No refresh token available.' };
+  }
+
+  try {
+    const response = await apiClient.post<any>('/auth/refresh', { refreshToken });
+    const resData = response.data;
+    if (!resData || resData.success === false) {
+      return { success: false, error: resData?.message || 'Token refresh failed.' };
+    }
+
+    const data = resData.data || {};
+    const newAccessToken = data.access_token || data.accessToken;
+    const newRefreshToken = data.refresh_token || data.refreshToken || refreshToken;
+
+    if (!newAccessToken) {
+      return { success: false, error: 'No new access token provided.' };
+    }
+
+    const userCookie = cookieStore.get('user')?.value;
+    if (userCookie) {
+      try {
+        const user = JSON.parse(userCookie);
+        await persistSession(user, newAccessToken, newRefreshToken);
+      } catch {
+        cookieStore.set('access_token', newAccessToken, { path: '/', httpOnly: false, secure: process.env.NODE_ENV === 'production', maxAge: 60 * 60 * 24 * 7 });
+        cookieStore.set('refresh_token', newRefreshToken, { path: '/', httpOnly: false, secure: process.env.NODE_ENV === 'production', maxAge: 60 * 60 * 24 * 30 });
+      }
+    } else {
+      cookieStore.set('access_token', newAccessToken, { path: '/', httpOnly: false, secure: process.env.NODE_ENV === 'production', maxAge: 60 * 60 * 24 * 7 });
+      cookieStore.set('refresh_token', newRefreshToken, { path: '/', httpOnly: false, secure: process.env.NODE_ENV === 'production', maxAge: 60 * 60 * 24 * 30 });
+    }
+
+    return { success: true, accessToken: newAccessToken };
+  } catch (error: any) {
+    if (env.isDev && refreshToken === 'dev-mock-refresh-token') {
+      const userCookie = cookieStore.get('user')?.value;
+      if (userCookie) {
+        try {
+          const user = JSON.parse(userCookie);
+          await persistSession(user, 'dev-mock-access-token', 'dev-mock-refresh-token');
+          return { success: true, accessToken: 'dev-mock-access-token' };
+        } catch {}
+      }
+    }
+
+    return {
+      success: false,
+      error: error?.response?.data?.message || error?.message || 'Failed to refresh token.',
+    };
+  }
+}
+
 

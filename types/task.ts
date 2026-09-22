@@ -1,4 +1,4 @@
-// Task shape matches the real backend (Arise-Backend prisma/schema.prisma
+// Task shape matches the real backend (HunterX-Backend prisma/schema.prisma
 // `tasks` model) — task_type/level_target/recurrence_days etc, not the
 // verification-method/monthly/one-time concepts from the old mock contract.
 // Those old concepts (VerificationMethod, PendingReviewItem) are kept below

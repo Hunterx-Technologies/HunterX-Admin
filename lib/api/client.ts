@@ -207,6 +207,10 @@ apiClient.interceptors.response.use(
       }
     }
 
+    if (status === 401 && typeof window !== 'undefined' && !isExcluded) {
+      window.dispatchEvent(new CustomEvent('hunterx-session-expired'));
+    }
+
     if (body && typeof body === 'object') {
       const errorMessage = body.message || body.error?.message || error.message;
       const errorCode = body.error?.code || 'API_ERROR';
