@@ -1,12 +1,20 @@
-import { ComingSoon } from '@/components/coming-soon';
-import { Bell } from 'lucide-react';
+import { getBroadcasts } from '@/lib/api/notifications';
+import { BroadcastForm } from './_components/broadcast-form';
+import { BroadcastHistory } from './_components/broadcast-history';
 
-export default function NotificationsPage() {
+export default async function NotificationsPage() {
+  const broadcasts = await getBroadcasts();
+
   return (
-    <ComingSoon
-      title="Notifications"
-      description="Compose and schedule push notifications and in-app announcements in a future phase."
-      icon={Bell}
-    />
+    <div className="space-y-8 max-w-4xl mx-auto">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight text-ink">Notifications</h1>
+        <p className="text-sm text-ink-muted mt-1">
+          Send announcements to hunters as a push notification and an in-app inbox message.
+        </p>
+      </div>
+      <BroadcastForm />
+      <BroadcastHistory broadcasts={broadcasts} />
+    </div>
   );
 }
