@@ -15,11 +15,11 @@ function parseJwtPayload(token: string): Record<string, any> | null {
       typeof Buffer !== 'undefined'
         ? Buffer.from(base64, 'base64').toString('utf-8')
         : decodeURIComponent(
-            atob(base64)
-              .split('')
-              .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-              .join('')
-          );
+          atob(base64)
+            .split('')
+            .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+            .join('')
+        );
     return JSON.parse(jsonPayload);
   } catch {
     return null;
@@ -106,6 +106,13 @@ export async function loginAction(email: string, password: string) {
 
     // Extract user role directly from JWT access token payload
     const tokenPayload = parseJwtPayload(accessToken);
+    console.log('Login JWT claim keys:', Object.keys(tokenPayload ?? {}));
+    console.log('Login JWT role claims:', {
+      role: tokenPayload?.role,
+      userRole: tokenPayload?.userRole,
+      roles: tokenPayload?.roles,
+      authorities: tokenPayload?.authorities,
+    });
     const tokenRole = tokenPayload?.role || tokenPayload?.userRole;
 
     if (!tokenRole || String(tokenRole).toUpperCase() !== 'ADMIN') {
@@ -238,7 +245,7 @@ export async function refreshTokenAction() {
           const user = JSON.parse(userCookie);
           await persistSession(user, 'dev-mock-access-token', 'dev-mock-refresh-token');
           return { success: true, accessToken: 'dev-mock-access-token' };
-        } catch {}
+        } catch { }
       }
     }
 
