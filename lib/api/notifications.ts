@@ -36,8 +36,12 @@ export async function getBroadcasts(): Promise<Broadcast[]> {
       notPushed: b.not_pushed ?? 0,
       read: b.read ?? 0,
     }));
-  } catch (error) {
-    console.error('[getBroadcasts] failed:', error);
+  } catch (error: any) {
+    if (error?.status === 401 || error?.status === 403 || error?.code === 'unauthorized') {
+      console.warn('[getBroadcasts]: Unauthorized or session expired.');
+    } else {
+      console.error('[getBroadcasts] failed:', error);
+    }
     return [];
   }
 }

@@ -102,9 +102,30 @@ export async function clearTokens(): Promise<void> {
 }
 
 apiClient.interceptors.request.use(async (config) => {
-  const accessToken = await getAccessToken();
+  const requestUrl = config.url || '';
+  const isAuthRoute =
+    requestUrl.includes('/auth/login') ||
+    requestUrl.includes('/auth/register') ||
+    requestUrl.includes('/auth/google') ||
+    requestUrl.includes('/auth/apple') ||
+    requestUrl.includes('/auth/refresh');
+
+  let accessToken = await getAccessToken();
+
+  if (!accessToken && !isAuthRoute) {
+    const refreshToken = await getRefreshToken();
+    if (refreshToken) {
+      refreshPromise ??= refreshAccessToken().finally(() => {
+        refreshPromise = null;
+      });
+      accessToken = await refreshPromise;
+    }
+  }
+
   if (accessToken) {
     config.headers.set('Authorization', `Bearer ${accessToken}`);
+  } else if (!isAuthRoute) {
+    throw new ApiError('unauthorized', 'Unauthorized — no token provided', 401);
   }
   return config;
 });
@@ -114,9 +135,8 @@ let refreshPromise: Promise<string | null> | null = null;
 async function refreshAccessToken(): Promise<string | null> {
   const refreshToken = await getRefreshToken();
   if (!refreshToken) {
-    await clearTokens();
     if (typeof window !== 'undefined') {
-      window.location.href = '/login';
+      window.dispatchEvent(new CustomEvent('hunterx-session-expired', { detail: { immediateLogout: false } }));
     }
     return null;
   }
@@ -130,12 +150,14 @@ async function refreshAccessToken(): Promise<string | null> {
     const resData = data as any;
     if (!resData?.success || !resData?.data) {
       const msg = resData?.message || '';
-      await clearTokens();
       if (typeof window !== 'undefined') {
         if (msg.toLowerCase().includes('suspended') || msg.toLowerCase().includes('banned')) {
+          await clearTokens();
           alert('Your account has been suspended.');
+          window.location.href = '/login';
+        } else {
+          window.dispatchEvent(new CustomEvent('hunterx-session-expired', { detail: { immediateLogout: false } }));
         }
-        window.location.href = '/login';
       }
       return null;
     }
@@ -144,9 +166,8 @@ async function refreshAccessToken(): Promise<string | null> {
     const newRefreshToken = resData.data.refresh_token || resData.data.refreshToken;
 
     if (!newAccessToken || !newRefreshToken) {
-      await clearTokens();
       if (typeof window !== 'undefined') {
-        window.location.href = '/login';
+        window.dispatchEvent(new CustomEvent('hunterx-session-expired', { detail: { immediateLogout: false } }));
       }
       return null;
     }
@@ -155,12 +176,14 @@ async function refreshAccessToken(): Promise<string | null> {
     return newAccessToken;
   } catch (error: any) {
     const msg = error?.response?.data?.message || '';
-    await clearTokens();
     if (typeof window !== 'undefined') {
       if (msg.toLowerCase().includes('suspended') || msg.toLowerCase().includes('banned')) {
+        await clearTokens();
         alert('Your account has been suspended.');
+        window.location.href = '/login';
+      } else {
+        window.dispatchEvent(new CustomEvent('hunterx-session-expired', { detail: { immediateLogout: false } }));
       }
-      window.location.href = '/login';
     }
     return null;
   }
@@ -183,7 +206,14 @@ apiClient.interceptors.response.use(
     const body = error.response?.data as any;
     const message = body?.message || body?.error?.message || '';
 
-    if (message.toLowerCase().includes('suspended') || message.toLowerCase().includes('banned')) {
+    const isSelfSuspension =
+      status === 403 &&
+      !requestUrl.includes('/admin/users') &&
+      (message.toLowerCase().includes('your account has been suspended') ||
+       message.toLowerCase().includes('your account has been banned') ||
+       message.toLowerCase().includes('account is suspended'));
+
+    if (isSelfSuspension) {
       await clearTokens();
       if (typeof window !== 'undefined') {
         alert('Your account has been suspended.');

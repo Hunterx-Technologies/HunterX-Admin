@@ -6,8 +6,8 @@
 // always renders empty (see lib/api/tasks.ts#getPendingReviews) — nothing
 // creates or edits a PendingReviewItem.
 
-export type TaskType = 'DAILY_ADMIN' | 'WEEKLY' | 'DAILY_FIXED';
-export type CreatableTaskType = 'DAILY_ADMIN' | 'WEEKLY';
+export type TaskType = 'DAILY_ADMIN' | 'WEEKLY' | 'DAILY_FIXED' | 'MONTHLY';
+export type CreatableTaskType = 'DAILY_ADMIN' | 'WEEKLY' | 'MONTHLY';
 export type TaskStatus = 'active' | 'inactive';
 export type LevelTarget = 'ALL' | 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED';
 export type RewardEligibility = 'standard' | 'bonus';
@@ -19,6 +19,8 @@ export type Task = {
   description: string;
   tag: string;
   imageUrl: string | null;
+  imageUrlMale?: string | null;
+  imageUrlFemale?: string | null;
   taskType: TaskType;
   isDefaultDaily: boolean;
   isRecurring: boolean;
@@ -34,26 +36,36 @@ export type Task = {
   rewardEligibility: RewardEligibility;
   status: TaskStatus;
   createdAt: string;
+  isPaid?: boolean;
+  price?: number | string | null;
+  currency?: string | null;
 };
 
-// Only DAILY_ADMIN/WEEKLY are admin-creatable — DAILY_FIXED routines are
+// Only DAILY_ADMIN/WEEKLY/MONTHLY are admin-creatable — DAILY_FIXED routines are
 // seed-managed (see adminTaskService.js).
 export type TaskInput = {
   title: string;
   description: string;
   tag: string;
   imageUrl: string | null;
+  imageUrlMale?: string | null;
+  imageUrlFemale?: string | null;
+  imageMaleFile?: File | null;
+  imageFemaleFile?: File | null;
   taskType: CreatableTaskType;
   isRecurring: boolean;
   recurrenceDays: number[];
   startDate: string | null; // 'YYYY-MM-DD'
-  endDate: string | null; // 'YYYY-MM-DD', required when isRecurring
+  endDate: string | null; // 'YYYY-MM-DD'
   levelTarget: LevelTarget;
   targetValue: number | null;
   targetUnit: string;
   allowsPartial: boolean;
   xpPartial: number | null;
-  xpReward: number;
+  xpReward: number | null;
+  isPaid?: boolean;
+  price?: number | null;
+  currency?: string;
 };
 
 export type TaskStats = {

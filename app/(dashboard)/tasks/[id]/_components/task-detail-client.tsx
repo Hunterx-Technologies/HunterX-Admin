@@ -52,6 +52,13 @@ export function TaskDetailClient({
           <h1 className="text-xl font-bold text-ink">{task.title}</h1>
           <Badge variant={task.status === 'active' ? 'success' : 'muted'}>{task.status}</Badge>
           <Badge variant="default">{task.rewardEligibility}</Badge>
+          {task.isPaid ? (
+            <Badge variant="warning" className="font-mono">
+              ₹{task.price} Paid
+            </Badge>
+          ) : (
+            <Badge variant="muted">Free</Badge>
+          )}
         </div>
         <p className="text-sm text-ink-muted">{task.description}</p>
       </Card>
@@ -59,6 +66,7 @@ export function TaskDetailClient({
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Field label="Tag" value={task.tag} />
         <Field label="Type" value={task.taskType.replace('_', ' ')} />
+        <Field label="Pricing" value={task.isPaid ? `₹${task.price} (${task.currency || 'INR'})` : 'Free'} />
         <Field label="Target" value={task.targetValue != null && task.targetUnit ? `${task.targetValue} ${task.targetUnit}` : 'None'} />
         <Field label="XP Reward" value={`${task.xpReward} XP`} />
         <Field label="Recurring" value={task.isRecurring ? 'Yes' : 'No'} />
@@ -66,6 +74,46 @@ export function TaskDetailClient({
         <Field label="Allows Partial" value={task.allowsPartial ? `Yes (${task.xpPartial} XP)` : 'No'} />
         <Field label="Default Daily" value={task.isDefaultDaily ? 'Yes' : 'No'} />
       </div>
+
+      {(task.imageUrlMale || task.imageUrlFemale || task.imageUrl) && (
+        <Card className="space-y-3">
+          <h2 className="text-sm font-semibold text-ink">Task Artwork</h2>
+          <div className="flex flex-wrap gap-6 items-center">
+            {(task.imageUrlMale || task.imageUrl) && (
+              <div className="flex items-center gap-3 p-3 rounded-xl border border-line bg-surface-inset/40">
+                <img
+                  src={task.imageUrlMale || task.imageUrl || ''}
+                  alt={`${task.title} (Male)`}
+                  className="w-16 h-16 rounded-lg object-cover border border-line bg-surface-inset"
+                  onError={(e) => {
+                    (e.target as HTMLElement).style.display = 'none';
+                  }}
+                />
+                <div>
+                  <p className="text-xs font-semibold text-ink">Male Artwork</p>
+                  <p className="text-[11px] text-ink-faint">Displayed for male hunters</p>
+                </div>
+              </div>
+            )}
+            {task.imageUrlFemale && (
+              <div className="flex items-center gap-3 p-3 rounded-xl border border-line bg-surface-inset/40">
+                <img
+                  src={task.imageUrlFemale}
+                  alt={`${task.title} (Female)`}
+                  className="w-16 h-16 rounded-lg object-cover border border-line bg-surface-inset"
+                  onError={(e) => {
+                    (e.target as HTMLElement).style.display = 'none';
+                  }}
+                />
+                <div>
+                  <p className="text-xs font-semibold text-ink">Female Artwork</p>
+                  <p className="text-[11px] text-ink-faint">Displayed for female hunters</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
 
       <Card className="space-y-6">
         <Tabs items={TAB_ITEMS} value={tab} onChange={setTab} />

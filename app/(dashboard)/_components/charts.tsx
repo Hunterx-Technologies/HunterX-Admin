@@ -23,13 +23,36 @@ const ACCENT = 'var(--accent-ink)';
 const GRID = 'var(--line)';
 const AXIS_TEXT = { fill: 'var(--ink-faint)', fontSize: 11 };
 
-const tooltipStyle = {
+const tooltipStyle: React.CSSProperties = {
   background: 'var(--surface)',
   border: '1px solid var(--line)',
   borderRadius: 10,
   fontSize: 12,
   color: 'var(--ink)',
   boxShadow: '0 8px 24px rgba(0,0,0,0.25)',
+  padding: '8px 12px',
+};
+
+const tooltipLabelStyle: React.CSSProperties = {
+  color: 'var(--ink)',
+  fontWeight: 600,
+  marginBottom: 4,
+};
+
+const tooltipItemStyle: React.CSSProperties = {
+  fontSize: 12,
+  padding: '2px 0',
+};
+
+const tooltipCursorBar = {
+  fill: 'var(--line)',
+  opacity: 0.35,
+};
+
+const tooltipCursorLine = {
+  stroke: 'var(--line-strong)',
+  strokeWidth: 1,
+  strokeDasharray: '4 4',
 };
 
 function formatShortDate(d: string) {
@@ -66,8 +89,11 @@ export function MrrTrendChart({ data }: { data: TrendPoint[] }) {
         />
         <Tooltip
           contentStyle={tooltipStyle}
+          labelStyle={tooltipLabelStyle}
+          itemStyle={tooltipItemStyle}
+          cursor={tooltipCursorLine}
           labelFormatter={(v) => formatShortDate(String(v))}
-          formatter={(value) => [`$${Number(value).toLocaleString()}`, 'MRR']}
+          formatter={(value) => [`$${Number(value).toLocaleString()}`, 'MRR (Monthly Recurring Revenue)']}
         />
         <Area
           type="monotone"
@@ -99,6 +125,9 @@ export function DauTrendChart({ data }: { data: TrendPoint[] }) {
         <YAxis tick={AXIS_TEXT} axisLine={false} tickLine={false} width={32} />
         <Tooltip
           contentStyle={tooltipStyle}
+          labelStyle={tooltipLabelStyle}
+          itemStyle={tooltipItemStyle}
+          cursor={tooltipCursorLine}
           labelFormatter={(v) => formatShortDate(String(v))}
           formatter={(value) => [`${Number(value)} users`, 'DAU']}
         />
@@ -136,6 +165,9 @@ export function StreakDropoffChart({ data }: { data: { day: number; usersRemaini
         <YAxis tick={AXIS_TEXT} axisLine={false} tickLine={false} width={32} />
         <Tooltip
           contentStyle={tooltipStyle}
+          labelStyle={tooltipLabelStyle}
+          itemStyle={tooltipItemStyle}
+          cursor={tooltipCursorLine}
           labelFormatter={(v) => `Day ${v}`}
           formatter={(value) => [`${Number(value)} users`, 'Still on streak']}
         />
@@ -183,6 +215,8 @@ export function SubscriptionDonut({ data }: { data: { status: string; count: num
             </Pie>
             <Tooltip
               contentStyle={tooltipStyle}
+              labelStyle={tooltipLabelStyle}
+              itemStyle={tooltipItemStyle}
               formatter={(value, name) => {
                 const num = Number(value);
                 return [`${num} (${Math.round((num / total) * 100)}%)`, String(name)];
@@ -213,6 +247,42 @@ export function SubscriptionDonut({ data }: { data: { status: string; count: num
   );
 }
 
+const COUPON_UNUSED_COLOR = 'var(--silver-ink)';
+
+function CouponTooltip({ active, payload, label }: any) {
+  if (!active || !payload || !payload.length) return null;
+
+  const order = ['used', 'unused', 'expired'];
+  const sorted = [...payload].sort((a, b) => {
+    const aKey = String(a.dataKey || a.name).toLowerCase();
+    const bKey = String(b.dataKey || b.name).toLowerCase();
+    return order.indexOf(aKey) - order.indexOf(bKey);
+  });
+
+  return (
+    <div
+      style={tooltipStyle}
+      className="rounded-xl border border-line bg-surface/95 backdrop-blur-md px-3.5 py-2.5 shadow-2xl text-xs space-y-1.5"
+    >
+      <p style={tooltipLabelStyle} className="font-semibold text-ink text-xs mb-1">
+        {label}
+      </p>
+      <div className="space-y-1">
+        {sorted.map((entry: any) => {
+          const color = entry.color || entry.fill || 'var(--ink)';
+          return (
+            <div key={entry.name} className="flex items-center gap-2 text-xs font-medium" style={{ color }}>
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
+              <span className="capitalize">{entry.name} :</span>
+              <span className="font-bold text-ink ml-auto">{entry.value}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function CouponTierChart({ data }: { data: CouponOverview['byTier'] }) {
   return (
     <div className="space-y-3">
@@ -221,19 +291,19 @@ export function CouponTierChart({ data }: { data: CouponOverview['byTier'] }) {
           <CartesianGrid stroke={GRID} strokeDasharray="0" vertical={false} />
           <XAxis dataKey="tier" tick={AXIS_TEXT} axisLine={{ stroke: GRID }} tickLine={false} />
           <YAxis tick={AXIS_TEXT} axisLine={false} tickLine={false} width={32} />
-          <Tooltip contentStyle={tooltipStyle} />
+          <Tooltip content={<CouponTooltip />} cursor={tooltipCursorBar} />
           <Bar dataKey="used" name="Used" fill="var(--ok-ink)" radius={[4, 4, 0, 0]} maxBarSize={20} />
-          <Bar dataKey="unused" name="Unused" fill="var(--line-strong)" radius={[4, 4, 0, 0]} maxBarSize={20} />
+          <Bar dataKey="unused" name="Unused" fill={COUPON_UNUSED_COLOR} radius={[4, 4, 0, 0]} maxBarSize={20} />
           <Bar dataKey="expired" name="Expired" fill="var(--bad-ink)" radius={[4, 4, 0, 0]} maxBarSize={20} />
         </BarChart>
       </ResponsiveContainer>
-      <div className="flex items-center justify-center gap-5 text-xs text-ink-muted">
+      <div className="flex items-center justify-center gap-5 text-xs">
         {[
           { label: 'Used', color: 'var(--ok-ink)' },
-          { label: 'Unused', color: 'var(--line-strong)' },
+          { label: 'Unused', color: COUPON_UNUSED_COLOR },
           { label: 'Expired', color: 'var(--bad-ink)' },
         ].map((l) => (
-          <span key={l.label} className="flex items-center gap-1.5">
+          <span key={l.label} className="flex items-center gap-1.5 font-medium" style={{ color: l.color }}>
             <span className="w-2.5 h-2.5 rounded-full" style={{ background: l.color }} />
             {l.label}
           </span>
@@ -250,8 +320,14 @@ export function RankDistributionChart({ data }: { data: RankDistributionPoint[] 
         <CartesianGrid stroke={GRID} strokeDasharray="0" vertical={false} />
         <XAxis dataKey="rank" tick={AXIS_TEXT} axisLine={{ stroke: GRID }} tickLine={false} />
         <YAxis tick={AXIS_TEXT} axisLine={false} tickLine={false} width={32} allowDecimals={false} />
-        <Tooltip contentStyle={tooltipStyle} formatter={(value) => [`${Number(value)} users`, 'Users']} />
-        <Bar dataKey="users" radius={[4, 4, 0, 0]} maxBarSize={40}>
+        <Tooltip
+          contentStyle={tooltipStyle}
+          labelStyle={tooltipLabelStyle}
+          itemStyle={tooltipItemStyle}
+          cursor={tooltipCursorBar}
+          formatter={(value) => [`${Number(value)} users`, 'Users']}
+        />
+        <Bar dataKey="users" fill={ACCENT} radius={[4, 4, 0, 0]} maxBarSize={40}>
           {data.map((entry, i) => (
             <Cell key={entry.rank} fillOpacity={0.35 + (i / Math.max(1, data.length - 1)) * 0.65} fill={ACCENT} />
           ))}

@@ -160,10 +160,8 @@ Do this once against the two servers from §2, freshly started.
 8. Click **Ban User** → status badge flips to "banned", button now reads
    "Unban User". **Reload the page** — still banned. Click **Unban User** —
    reverts, and survives a reload too.
-9. Click **Adjust XP**, enter a delta and a reason, Apply → XP total updates
-   and survives a reload.
-10. Click **Reset Streak**, confirm → current streak becomes 0 and survives
-    a reload.
+9. Click **Reset Streak**, confirm → current streak becomes 0 and survives
+   a reload.
 
 ### Tasks (`/tasks`)
 11. Total Tasks reads **15**.

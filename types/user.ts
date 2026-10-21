@@ -2,13 +2,62 @@ export type UserRank = 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond' | '
 export type UserStatus = 'active' | 'banned';
 export type AuthProvider = 'email' | 'google' | 'apple';
 
-export type UserActivityLogEntry = {
+export type PerformedBy = {
   id: string;
+  name: string;
+} | null;
+
+export type TaskCompletionActivity = {
+  id: string;
+  type: 'TASK_COMPLETION';
+  title: string;
+  occurredAt: string;
   taskTitle: string;
-  completedAt: string;
+  completedAt?: string;
+  scheduleDate?: string;
   xpEarned: number;
-  verificationStatus: 'approved' | 'pending' | 'rejected';
+  status: 'completed' | 'partial' | 'skipped';
 };
+
+export type BanActivity = {
+  id: string;
+  type: 'BAN';
+  title: string;
+  occurredAt: string;
+  reason: string | null;
+  details: Record<string, any> | null;
+  performedBy: PerformedBy;
+};
+
+export type UnbanActivity = {
+  id: string;
+  type: 'UNBAN';
+  title: string;
+  occurredAt: string;
+  reason: string | null;
+  details: Record<string, any> | null;
+  performedBy: PerformedBy;
+};
+
+export type StreakResetActivity = {
+  id: string;
+  type: 'STREAK_RESET';
+  title: string;
+  occurredAt: string;
+  reason: string | null;
+  details: {
+    previous_streak?: number;
+    previousStreak?: number;
+    [key: string]: any;
+  } | null;
+  performedBy: PerformedBy;
+};
+
+export type UserActivityLogEntry =
+  | TaskCompletionActivity
+  | BanActivity
+  | UnbanActivity
+  | StreakResetActivity;
 
 export type UserBadge = {
   id: string;
@@ -21,6 +70,7 @@ export type UserRewardClaim = {
   id: string;
   rewardName: string;
   type: 'coupon' | 'cosmetic' | 'xp_boost';
+  status?: 'active' | 'claimed' | 'expired';
   claimedAt: string;
 };
 
@@ -50,6 +100,7 @@ export type User = {
   bmi: number;
   status: UserStatus;
   banReason: string | null;
+  bannedAt: string | null;
   authProvider: AuthProvider;
   role?: 'admin' | 'user' | string;
   createdAt: string;
@@ -77,6 +128,8 @@ export type ApiUser = {
   streak: number;
   longest_streak: number;
   status: 'ACTIVE' | 'BANNED' | string;
+  ban_reason?: string | null;
+  banned_at?: string | null;
   signup_date: string;
   auth_providers: string[];
 };

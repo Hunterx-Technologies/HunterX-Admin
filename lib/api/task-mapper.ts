@@ -1,7 +1,7 @@
 import { deriveRewardEligibility } from '@/lib/api/reward-eligibility';
 import type { Task, TaskType, LevelTarget } from '@/types/task';
 
-const TASK_TYPES: TaskType[] = ['DAILY_ADMIN', 'WEEKLY', 'DAILY_FIXED'];
+const TASK_TYPES: TaskType[] = ['DAILY_ADMIN', 'WEEKLY', 'DAILY_FIXED', 'MONTHLY'];
 const LEVEL_TARGETS: LevelTarget[] = ['ALL', 'BEGINNER', 'INTERMEDIATE', 'ADVANCED'];
 
 /**
@@ -20,7 +20,9 @@ export function mapRawTaskToTask(raw: any): Task {
     title: raw.title || 'Untitled Task',
     description: raw.description || '',
     tag: raw.tag || 'General',
-    imageUrl: raw.image_url || null,
+    imageUrl: raw.image_url || raw.image_url_male || null,
+    imageUrlMale: raw.image_url_male || raw.image_url || null,
+    imageUrlFemale: raw.image_url_female || null,
     taskType,
     isDefaultDaily: Boolean(raw.is_default_daily),
     isRecurring: Boolean(raw.is_recurring),
@@ -33,8 +35,11 @@ export function mapRawTaskToTask(raw: any): Task {
     allowsPartial: Boolean(raw.allows_partial),
     xpPartial: raw.xp_partial ?? 0,
     xpReward,
-    rewardEligibility: deriveRewardEligibility(xpReward, taskType === 'WEEKLY' ? 'WEEKLY' : 'DAILY_ADMIN'),
+    rewardEligibility: deriveRewardEligibility(xpReward, taskType === 'WEEKLY' ? 'WEEKLY' : taskType === 'MONTHLY' ? 'MONTHLY' : 'DAILY_ADMIN'),
     status: raw.is_active === false ? 'inactive' : 'active',
     createdAt: raw.created_at || new Date().toISOString(),
+    isPaid: Boolean(raw.is_paid),
+    price: raw.price != null ? (typeof raw.price === 'string' ? raw.price : String(raw.price)) : null,
+    currency: raw.currency || 'INR',
   };
 }

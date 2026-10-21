@@ -1,20 +1,28 @@
 'use client';
 
 import * as React from 'react';
-import { useRouter } from 'next/navigation';
 import { refreshTokenAction, logoutAction } from '@/lib/auth/actions';
 import { Button } from '@/components/ui/button';
-import { Clock, LogOut, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Clock, LogOut, RefreshCw } from 'lucide-react';
 
 function getCookie(name: string): string | null {
   if (typeof document === 'undefined') return null;
-  const match = document.cookie.match(new RegExp('(?:^|; )' + name.replace(/([\.$?*|{}\(\)\[\]\\\/\+^])/g, '\\$1') + '=([^;]*)'));
-  return match ? decodeURIComponent(match[1]) : null;
+  const match = document.cookie.match(
+    new RegExp('(?:^|; )' + name.replace(/([\.$?*|{}\(\)\[\]\\\/\+^])/g, '\\$1') + '=([^;]*)')
+  );
+  if (!match) return null;
+  try {
+    const val = decodeURIComponent(match[1]);
+    return val.replace(/^"(.*)"$/, '$1');
+  } catch {
+    return match[1].replace(/^"(.*)"$/, '$1');
+  }
 }
 
 function parseJwtExp(token: string): number | null {
   try {
-    const parts = token.split('.');
+    const cleanToken = token.replace(/^"(.*)"$/, '$1').trim();
+    const parts = cleanToken.split('.');
     if (parts.length !== 3) return null;
     const base64Url = parts[1];
     const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
@@ -31,80 +39,260 @@ function parseJwtExp(token: string): number | null {
   }
 }
 
+function isUserAdmin(): boolean {
+  try {
+    const userCookie = getCookie('user');
+    if (userCookie) {
+      try {
+        const user = JSON.parse(userCookie);
+        if (user?.role && String(user.role).toLowerCase() === 'admin') {
+          return true;
+        }
+      } catch {}
+    }
+    const accessToken = getCookie('access_token');
+    if (accessToken) {
+      const parts = accessToken.split('.');
+      if (parts.length === 3) {
+        try {
+          const base64Url = parts[1];
+          const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+          const jsonPayload = decodeURIComponent(
+            atob(base64)
+              .split('')
+              .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+              .join('')
+          );
+          const parsed = JSON.parse(jsonPayload);
+          const role = parsed.role || parsed.userRole || parsed.roles;
+          if (typeof role === 'string' && role.toLowerCase() === 'admin') return true;
+          if (Array.isArray(role) && role.some((r) => String(r).toLowerCase() === 'admin')) return true;
+        } catch {}
+      }
+      return true; // Default to true if access token exists in admin dashboard
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
+  const s = Math.max(0, seconds % 60);
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
 export function SessionTimeoutModal() {
-  const router = useRouter();
   const [open, setOpen] = React.useState(false);
-  const [remainingSeconds, setRemainingSeconds] = React.useState<number>(120);
+  const [isAlreadyExpired, setIsAlreadyExpired] = React.useState(false);
+  const [remainingSeconds, setRemainingSeconds] = React.useState<number>(30);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
-  // Warning threshold in seconds (2 minutes before token exp)
+  // Warning window: 2 minutes (120 seconds) before token expiration
   const WARNING_THRESHOLD = 120;
+  // Idle inactivity limit: 15 minutes without user interaction
+  const IDLE_TIMEOUT_MS = 15 * 60 * 1000;
+
+  const countdownIntervalRef = React.useRef<NodeJS.Timeout | null>(null);
+  const expireTargetMsRef = React.useRef<number | null>(null);
+  const lastActivityMsRef = React.useRef<number>(Date.now());
+  const openRef = React.useRef(false);
+  const isLoggingOutRef = React.useRef(false);
+
+  const clearTimers = React.useCallback(() => {
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = null;
+    }
+  }, []);
 
   const performLogout = React.useCallback(async () => {
-    setOpen(false);
-    await logoutAction();
-    router.push('/login?expired=1');
-    router.refresh();
-  }, [router]);
+    if (isLoggingOutRef.current) return;
+    isLoggingOutRef.current = true;
 
+    openRef.current = false;
+    expireTargetMsRef.current = null;
+    setOpen(false);
+    clearTimers();
+
+    try {
+      await logoutAction();
+    } catch {
+      // Best-effort logout
+    }
+
+    if (typeof window !== 'undefined') {
+      window.location.href = '/login?expired=1';
+    }
+  }, [clearTimers]);
+
+  const openSessionModal = React.useCallback((targetMs: number, alreadyExpired: boolean) => {
+    if (openRef.current) return;
+
+    openRef.current = true;
+    expireTargetMsRef.current = targetMs;
+    setIsAlreadyExpired(alreadyExpired);
+
+    const initialSecs = Math.max(0, Math.ceil((targetMs - Date.now()) / 1000));
+    setRemainingSeconds(initialSecs);
+    setError(null);
+    setOpen(true);
+  }, []);
+
+  // Periodic heartbeat session check (runs every 3s + on visibility/focus)
   const checkSession = React.useCallback(() => {
+    if (openRef.current) return;
+    if (!isUserAdmin()) return;
+
+    // Check user inactivity (idle timeout)
+    const idleMs = Date.now() - lastActivityMsRef.current;
+    if (idleMs >= IDLE_TIMEOUT_MS) {
+      openSessionModal(Date.now() + 60 * 1000, false);
+      return;
+    }
+
     const accessToken = getCookie('access_token');
     if (!accessToken) return;
 
     const exp = parseJwtExp(accessToken);
-    if (!exp) return; // If dev mock or non-JWT token, handled via events or default timer
+    if (!exp) return;
 
-    const nowSeconds = Math.floor(Date.now() / 1000);
-    const secsLeft = exp - nowSeconds;
+    const nowMs = Date.now();
+    const expMs = exp * 1000;
+    const msLeft = expMs - nowMs;
+    const secsLeft = Math.floor(msLeft / 1000);
 
     if (secsLeft <= 0) {
-      performLogout();
+      // Token expired: 30s grace period to refresh or logout
+      openSessionModal(Date.now() + 30 * 1000, true);
     } else if (secsLeft <= WARNING_THRESHOLD) {
-      setRemainingSeconds(secsLeft);
-      setOpen(true);
-    } else {
-      setOpen(false);
+      // Within warning threshold: countdown to expiration
+      openSessionModal(expMs, false);
     }
-  }, [performLogout]);
+  }, [openSessionModal, WARNING_THRESHOLD, IDLE_TIMEOUT_MS]);
 
-  // Periodic check for token expiration
+  // Track user activity to detect idle state
   React.useEffect(() => {
-    const timer = setTimeout(() => {
-      checkSession();
-    }, 0);
+    const recordActivity = () => {
+      lastActivityMsRef.current = Date.now();
+    };
 
-    const interval = setInterval(() => {
-      checkSession();
-    }, 1000);
+    window.addEventListener('mousemove', recordActivity, { passive: true });
+    window.addEventListener('keydown', recordActivity, { passive: true });
+    window.addEventListener('click', recordActivity, { passive: true });
+    window.addEventListener('scroll', recordActivity, { passive: true });
 
     return () => {
-      clearTimeout(timer);
-      clearInterval(interval);
+      window.removeEventListener('mousemove', recordActivity);
+      window.removeEventListener('keydown', recordActivity);
+      window.removeEventListener('click', recordActivity);
+      window.removeEventListener('scroll', recordActivity);
     };
+  }, []);
+
+  // Check every 3 seconds so backgrounding or tab switching never misses the window
+  React.useEffect(() => {
+    checkSession();
+    const interval = setInterval(checkSession, 3000);
+    return () => clearInterval(interval);
   }, [checkSession]);
 
-  // Listen for custom API session-expired events
+  // Handle visibility change and tab focus immediately
+  React.useEffect(() => {
+    const handleActivity = () => {
+      if (document.visibilityState === 'visible') {
+        if (openRef.current && expireTargetMsRef.current) {
+          const msLeft = expireTargetMsRef.current - Date.now();
+          const secs = Math.max(0, Math.ceil(msLeft / 1000));
+          setRemainingSeconds(secs);
+          if (msLeft <= 0) {
+            performLogout();
+          }
+        } else {
+          checkSession();
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleActivity);
+    window.addEventListener('focus', handleActivity);
+    return () => {
+      document.removeEventListener('visibilitychange', handleActivity);
+      window.removeEventListener('focus', handleActivity);
+    };
+  }, [checkSession, performLogout]);
+
+  // Listen for custom API session-expired events (triggered by 401s in client.ts)
   React.useEffect(() => {
     const handleSessionEvent = (e: Event) => {
       const customEvent = e as CustomEvent;
       if (customEvent.detail?.immediateLogout) {
         performLogout();
-      } else {
-        setRemainingSeconds(60);
-        setOpen(true);
+        return;
       }
+
+      if (openRef.current) return;
+      openSessionModal(Date.now() + 30 * 1000, true);
     };
 
     window.addEventListener('hunterx-session-expired', handleSessionEvent);
     return () => window.removeEventListener('hunterx-session-expired', handleSessionEvent);
-  }, [performLogout]);
+  }, [openSessionModal, performLogout]);
+
+  // Expose browser console test helper: window.__testSessionTimeout(30)
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as any).__testSessionTimeout = (seconds = 60) => {
+        openSessionModal(Date.now() + seconds * 1000, false);
+      };
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        delete (window as any).__testSessionTimeout;
+      }
+    };
+  }, [openSessionModal]);
+
+  // Countdown timer: ONLY runs while modal is open, based on wall-clock target timestamp
+  React.useEffect(() => {
+    if (!open) {
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = null;
+      }
+      return;
+    }
+
+    const tick = () => {
+      if (!expireTargetMsRef.current) return;
+      const msLeft = expireTargetMsRef.current - Date.now();
+      const secs = Math.max(0, Math.ceil(msLeft / 1000));
+      setRemainingSeconds(secs);
+
+      if (msLeft <= 0) {
+        if (countdownIntervalRef.current) {
+          clearInterval(countdownIntervalRef.current);
+          countdownIntervalRef.current = null;
+        }
+        performLogout();
+      }
+    };
+
+    // Immediate tick when modal opens
+    tick();
+
+    // Tick every 500ms to guarantee responsive, smooth second transitions with zero drift
+    countdownIntervalRef.current = setInterval(tick, 500);
+
+    return () => {
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = null;
+      }
+    };
+  }, [open, performLogout]);
 
   const handleContinueSession = async () => {
     setLoading(true);
@@ -112,8 +300,16 @@ export function SessionTimeoutModal() {
 
     try {
       const res = await refreshTokenAction();
-      if (res.success) {
+      if (res.success && res.accessToken) {
+        openRef.current = false;
+        expireTargetMsRef.current = null;
+        if (countdownIntervalRef.current) {
+          clearInterval(countdownIntervalRef.current);
+          countdownIntervalRef.current = null;
+        }
         setOpen(false);
+        setError(null);
+        lastActivityMsRef.current = Date.now();
         checkSession();
       } else {
         setError(res.error || 'Failed to extend session.');
@@ -127,71 +323,92 @@ export function SessionTimeoutModal() {
 
   if (!open) return null;
 
+  const isLowTime = remainingSeconds <= 30;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/75 backdrop-blur-md animate-in fade-in duration-200" />
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" />
 
       {/* Modal Dialog */}
-      <div className="relative w-full max-w-md rounded-2xl border border-amber-500/30 bg-surface/95 shadow-[0_0_50px_rgba(245,158,11,0.15)] p-6 space-y-6 text-ink z-10 animate-in zoom-in-95 duration-200">
-        <div className="flex flex-col items-center text-center space-y-3">
-          <div className="w-14 h-14 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.2)] animate-pulse">
-            <Clock className="w-7 h-7" />
+      <div className="relative w-full max-w-sm rounded-xl border border-line bg-surface shadow-2xl p-5 space-y-4 text-ink z-10 animate-in zoom-in-95 duration-200">
+        <div className="flex items-start gap-3.5">
+          <div
+            className={`w-9 h-9 rounded-lg flex items-center justify-center border shrink-0 mt-0.5 transition-colors ${
+              isLowTime
+                ? 'bg-red-500/10 border-red-500/25 text-red-400'
+                : 'bg-amber-500/10 border-amber-500/25 text-amber-400'
+            }`}
+          >
+            <Clock className="w-4.5 h-4.5" />
           </div>
-          <h3 className="text-xl font-bold tracking-tight text-ink">Session Expiring Soon</h3>
-          <p className="text-sm text-ink-muted max-w-xs">
-            Your security session is about to time out. Would you like to extend your session and stay signed in?
-          </p>
-        </div>
 
-        {/* Countdown Timer Display */}
-        <div className="flex flex-col items-center justify-center py-4 px-6 rounded-xl bg-amber-500/10 border border-amber-500/20 shadow-[0_0_20px_rgba(245,158,11,0.1)] space-y-1">
-          <span className="text-[11px] font-semibold text-amber-400/80 uppercase tracking-widest flex items-center gap-1.5">
-            <AlertTriangle className="w-3.5 h-3.5" /> Time Remaining
-          </span>
-          <span className="text-4xl font-extrabold font-mono text-amber-400 tracking-wider">
-            {formatTime(remainingSeconds)}
-          </span>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold text-ink">
+                {isAlreadyExpired ? 'Session Expired' : 'Session Expiring Soon'}
+              </h3>
+              <span
+                className={`font-mono text-xs font-semibold px-2 py-0.5 rounded border tabular-nums transition-colors ${
+                  isLowTime
+                    ? 'bg-red-500/10 text-red-400 border-red-500/25 animate-pulse'
+                    : 'bg-amber-500/10 text-amber-400 border-amber-500/25'
+                }`}
+              >
+                {formatTime(remainingSeconds)}
+              </span>
+            </div>
+            <p className="text-xs text-ink-muted mt-1 leading-relaxed">
+              {isAlreadyExpired
+                ? 'Your admin access has expired. Extend your session now to stay signed in.'
+                : 'You will be signed out soon due to inactivity. Would you like to stay signed in?'}
+            </p>
+          </div>
         </div>
 
         {error && (
-          <div className="p-3 rounded-lg border border-red-500/20 bg-red-500/10 text-bad-ink text-xs text-center">
+          <div className="p-2.5 rounded-lg border border-red-500/20 bg-red-500/10 text-bad-ink text-xs">
             {error}
           </div>
         )}
 
         {/* Action Buttons */}
-        <div className="space-y-2.5 pt-1">
+        <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-line/60">
           <Button
-            variant="primary"
-            className="w-full py-3 text-sm font-semibold flex items-center justify-center gap-2 cursor-pointer shadow-lg"
-            onClick={handleContinueSession}
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={performLogout}
             disabled={loading}
+            className="text-xs text-ink-muted hover:text-bad-ink"
           >
-            {loading ? (
-              <>
-                <RefreshCw className="w-4 h-4 animate-spin" />
-                <span>Extending Session...</span>
-              </>
-            ) : (
-              <>
-                <RefreshCw className="w-4 h-4" />
-                <span>Continue Session</span>
-              </>
-            )}
+            <LogOut className="w-3.5 h-3.5 mr-1.5" />
+            Sign Out
           </Button>
 
           <Button
-            variant="ghost"
-            className="w-full py-2.5 text-sm font-medium text-ink-muted hover:text-bad-ink hover:bg-red-950/20 border border-line hover:border-red-900/30 flex items-center justify-center gap-2 cursor-pointer transition-colors"
-            onClick={performLogout}
+            type="button"
+            variant="primary"
+            size="sm"
+            onClick={handleContinueSession}
             disabled={loading}
+            className="text-xs font-medium"
           >
-            <LogOut className="w-4 h-4" />
-            <span>Sign Out Now</span>
+            {loading ? (
+              <>
+                <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                Extending...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+                Continue Session
+              </>
+            )}
           </Button>
         </div>
       </div>
     </div>
   );
 }
+

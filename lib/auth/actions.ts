@@ -46,6 +46,7 @@ function buildDevMockUser(): User {
     bmi: 23.4,
     status: 'active',
     banReason: null,
+    bannedAt: null,
     authProvider: 'email',
     role: 'admin',
     createdAt: new Date().toISOString(),
@@ -137,6 +138,7 @@ export async function loginAction(email: string, password: string) {
       bmi: rawUser.bmi ?? 0,
       status: rawUser.is_banned ? 'banned' : (rawUser.status ?? 'active'),
       banReason: rawUser.banReason ?? null,
+      bannedAt: rawUser.banned_at || rawUser.bannedAt || null,
       authProvider: 'email',
       role: 'admin',
       createdAt: rawUser.created_at || rawUser.createdAt || new Date().toISOString(),
@@ -191,8 +193,9 @@ export async function logoutAction() {
 export async function getSessionUser(): Promise<User | null> {
   try {
     const cookieStore = await cookies();
+    const token = cookieStore.get('access_token')?.value;
     const userCookie = cookieStore.get('user');
-    if (!userCookie) return null;
+    if (!token || !token.trim() || !userCookie) return null;
     return JSON.parse(userCookie.value) as User;
   } catch {
     return null;

@@ -1,11 +1,18 @@
 import Link from 'next/link';
 import { getTasks, getTaskStats } from '@/lib/api/tasks';
+import { getSessionUser } from '@/lib/auth/actions';
+import { redirect } from 'next/navigation';
 import { StatCard } from '@/components/stat-card';
 import { Button } from '@/components/ui/button';
 import { Target, Zap, CheckCircle2, ClipboardList, Plus } from 'lucide-react';
 import { TasksTable } from './_components/tasks-table';
 
 export default async function TasksPage() {
+  const user = await getSessionUser();
+  if (!user) {
+    redirect('/login');
+  }
+
   const [tasks, stats] = await Promise.all([getTasks(), getTaskStats()]);
 
   return (

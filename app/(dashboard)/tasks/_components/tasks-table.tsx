@@ -16,6 +16,7 @@ const TYPE_LABEL: Record<TaskType, string> = {
   DAILY_ADMIN: 'Daily',
   WEEKLY: 'Weekly',
   DAILY_FIXED: 'Daily (Fixed)',
+  MONTHLY: 'Monthly',
 };
 
 export function TasksTable({ tasks }: { tasks: Task[] }) {
@@ -69,9 +70,16 @@ export function TasksTable({ tasks }: { tasks: Task[] }) {
           {filtered.map((task) => (
             <TableRow key={task.id}>
               <TableCell>
-                <Link href={`/tasks/${task.id}`} className="font-medium text-ink hover:text-accent-ink transition-colors">
-                  {task.title}
-                </Link>
+                <div className="flex items-center gap-2">
+                  <Link href={`/tasks/${task.id}`} className="font-medium text-ink hover:text-accent-ink transition-colors">
+                    {task.title}
+                  </Link>
+                  {task.isPaid && (
+                    <Badge variant="warning" className="text-[10px] px-1.5 py-0.5 font-mono">
+                      ₹{task.price}
+                    </Badge>
+                  )}
+                </div>
                 <p className="text-xs text-ink-faint">{task.tag}</p>
               </TableCell>
               <TableCell>

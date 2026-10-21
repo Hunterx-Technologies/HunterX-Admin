@@ -4,7 +4,7 @@ import type { CreatableTaskType, RewardEligibility } from '@/types/task';
 // DAILY_ADMIN task, 70 for WEEKLY. There's no verification-method concept
 // in this backend's task model, so eligibility is purely how close the
 // chosen XP reward sits to its type's cap.
-const XP_CAP: Record<CreatableTaskType, number> = { DAILY_ADMIN: 10, WEEKLY: 70 };
+const XP_CAP: Record<CreatableTaskType, number> = { DAILY_ADMIN: 10, WEEKLY: 70, MONTHLY: 300 };
 
 /**
  * Client-safe preview of reward tiering, used by the task form to show a

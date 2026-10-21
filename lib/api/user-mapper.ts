@@ -1,4 +1,77 @@
-import type { User, UserRank } from '@/types/user';
+import type { User, UserRank, UserActivityLogEntry } from '@/types/user';
+
+function mapActivityLogEntry(a: any): UserActivityLogEntry {
+  const rawType = String(a.type || 'TASK_COMPLETION').toUpperCase();
+  const id = String(a.id);
+  const occurredAt =
+    a.occurred_at ||
+    a.occurredAt ||
+    a.completed_at ||
+    a.completedAt ||
+    a.schedule_date ||
+    new Date().toISOString();
+  const reason = a.reason ?? null;
+  const details = a.details ?? null;
+  const performedBy =
+    a.performed_by || a.performedBy
+      ? {
+          id: String(a.performed_by?.id || a.performedBy?.id || ''),
+          name: String(a.performed_by?.name || a.performedBy?.name || ''),
+        }
+      : null;
+
+  if (rawType === 'BAN') {
+    return {
+      id,
+      type: 'BAN',
+      title: a.title || 'User Banned',
+      occurredAt,
+      reason,
+      details,
+      performedBy,
+    };
+  }
+
+  if (rawType === 'UNBAN') {
+    return {
+      id,
+      type: 'UNBAN',
+      title: a.title || 'User Unbanned',
+      occurredAt,
+      reason,
+      details,
+      performedBy,
+    };
+  }
+
+  if (rawType === 'STREAK_RESET') {
+    return {
+      id,
+      type: 'STREAK_RESET',
+      title: a.title || 'Streak Reset',
+      occurredAt,
+      reason,
+      details,
+      performedBy,
+    };
+  }
+
+  const rawStatus = String(a.status || 'completed').toLowerCase();
+  const status: 'completed' | 'partial' | 'skipped' =
+    rawStatus === 'partial' ? 'partial' : rawStatus === 'skipped' ? 'skipped' : 'completed';
+
+  return {
+    id,
+    type: 'TASK_COMPLETION',
+    title: a.title || a.task_title || a.taskTitle || 'Task completed',
+    occurredAt,
+    taskTitle: a.task_title ?? a.taskTitle ?? a.title ?? 'Task',
+    completedAt: a.completed_at ?? a.completedAt ?? occurredAt,
+    scheduleDate: a.schedule_date ?? a.scheduleDate,
+    xpEarned: Number(a.xp_earned ?? a.xpEarned ?? 0),
+    status,
+  };
+}
 
 /**
  * Maps a raw snake_case user row (as returned by GET /admin/users list items,
@@ -38,14 +111,33 @@ export function mapRawUserToUser(raw: any): User {
     heightCm,
     weightKg,
     bmi,
-    status: raw.is_banned || raw.status === 'BANNED' ? 'banned' : 'active',
+    status: raw.is_banned || String(raw.status || '').toUpperCase() === 'BANNED' ? 'banned' : 'active',
     banReason: raw.ban_reason ?? raw.banReason ?? null,
+    bannedAt: raw.banned_at ?? raw.bannedAt ?? null,
     authProvider,
     role: (raw.role?.toLowerCase() as 'admin' | 'user') || 'user',
     createdAt: raw.signup_date || raw.created_at || raw.createdAt || new Date().toISOString(),
-    activityLog: raw.activity_log || raw.activityLog || [],
-    badges: raw.badges || [],
-    rewardClaims: raw.reward_claims || raw.rewardClaims || [],
-    feedbackTickets: raw.feedback_tickets || raw.feedbackTickets || [],
+    activityLog: (raw.activity_log || raw.activityLog || []).map(mapActivityLogEntry),
+    badges: (raw.badges || []).map((b: any) => ({
+      id: String(b.id),
+      name: b.name,
+      description: b.description ?? '',
+      earnedAt: b.earned_at ?? b.earnedAt,
+    })),
+    rewardClaims: (raw.reward_claims || raw.rewardClaims || []).map((r: any) => ({
+      id: String(r.id),
+      rewardName: r.reward_name ?? r.rewardName ?? 'Reward',
+      type: r.type ?? 'coupon',
+      status: r.status ? String(r.status).toLowerCase() : undefined,
+      claimedAt: r.claimed_at ?? r.claimedAt ?? r.assigned_at,
+    })),
+    feedbackTickets: (raw.feedback_tickets || raw.feedbackTickets || []).map((f: any) => ({
+      id: String(f.id),
+      subject: f.subject,
+      message: f.message ?? '',
+      rating: f.rating ?? null,
+      status: f.status === 'resolved' ? 'resolved' : 'open',
+      createdAt: f.created_at ?? f.createdAt,
+    })),
   };
 }
