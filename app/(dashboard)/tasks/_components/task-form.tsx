@@ -13,10 +13,12 @@ import { Badge } from '@/components/ui/badge';
 import { deriveRewardEligibility } from '@/lib/api/reward-eligibility';
 import { createTask, updateTask } from '@/lib/api/task-actions';
 import type { Task, TaskInput, CreatableTaskType, LevelTarget } from '@/types/task';
-import { Lock, AlertCircle, Upload, X, IndianRupee, Sparkles, HelpCircle } from 'lucide-react';
+import { Lock, AlertCircle, AlertTriangle, Upload, X, IndianRupee, Sparkles, HelpCircle } from 'lucide-react';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { recurrenceLabel, taskTypeLabel } from '@/lib/task-labels';
+import type { RewardTrigger } from '@/types/reward';
 
-
-const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10 MB client limit
+import { imageFileError, MAX_IMAGE_LABEL } from '@/lib/upload-limits';
 
 // Mirrors adminTaskService.js#XP_CAP — daily admin-authored tasks cap at 10
 // XP, weekly quests at 70, monthly at 300 — keeping admin-created tasks in line
@@ -46,13 +48,16 @@ const DEFAULT_FORM: TaskInput = {
   isPaid: false,
   price: null,
   currency: 'INR',
+  specialRewardId: null,
+  proofCount: 0,
 };
 
 function toDateInput(value: string | null) {
   return value ? value.slice(0, 10) : '';
 }
 
-export function TaskForm({ initialTask }: { initialTask?: Task }) {
+/** specialRewards: the rewards on Rewards → Special rewards, for the optional special-reward picker. */
+export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: Task; specialRewards?: RewardTrigger[] }) {
   const router = useRouter();
   const [form, setForm] = React.useState<TaskInput>(
     initialTask && (initialTask.taskType === 'DAILY_ADMIN' || initialTask.taskType === 'WEEKLY' || initialTask.taskType === 'MONTHLY')
@@ -79,6 +84,8 @@ export function TaskForm({ initialTask }: { initialTask?: Task }) {
           isPaid: Boolean(initialTask.isPaid),
           price: initialTask.price != null ? Number(initialTask.price) : null,
           currency: initialTask.currency || 'INR',
+          specialRewardId: initialTask.specialRewardId,
+          proofCount: initialTask.proofCount,
         }
       : DEFAULT_FORM
   );
@@ -104,14 +111,9 @@ export function TaskForm({ initialTask }: { initialTask?: Task }) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > MAX_IMAGE_BYTES) {
-      setError(`Each image must be 10MB or smaller (${file.name} is ${(file.size / (1024 * 1024)).toFixed(1)}MB)`);
-      e.target.value = '';
-      return;
-    }
-
-    if (!file.type.startsWith('image/')) {
-      setError('Images must be image files (jpg, png, webp, ...)');
+    const fileError = imageFileError(file);
+    if (fileError) {
+      setError(fileError);
       e.target.value = '';
       return;
     }
@@ -173,8 +175,17 @@ export function TaskForm({ initialTask }: { initialTask?: Task }) {
     isEndDateValid &&
     isPriceValid;
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Saving asks the admin to recheck first: once hunters get the task it
+  // can't be deleted any more (only deactivated), and edits reach them straight away.
+  const [confirmSave, setConfirmSave] = React.useState(false);
+
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isValid) return;
+    setConfirmSave(true);
+  };
+
+  const save = async () => {
     if (!isValid) return;
     setSubmitting(true);
     setError(null);
@@ -200,6 +211,8 @@ export function TaskForm({ initialTask }: { initialTask?: Task }) {
         if (form.targetUnit.trim()) fd.append('target_unit', form.targetUnit.trim());
         fd.append('is_paid', String(Boolean(form.isPaid)));
         if (form.isPaid && form.price != null) fd.append('price', String(form.price));
+        fd.append('special_reward_id', form.specialRewardId ?? 'none');
+        fd.append('proof_count', String(form.proofCount));
 
         if (form.imageMaleFile) {
           fd.append('image_male', form.imageMaleFile);
@@ -230,6 +243,7 @@ export function TaskForm({ initialTask }: { initialTask?: Task }) {
       setError(err instanceof Error ? err.message : 'Failed to save this task.');
     } finally {
       setSubmitting(false);
+      setConfirmSave(false);
     }
   };
 
@@ -245,7 +259,7 @@ export function TaskForm({ initialTask }: { initialTask?: Task }) {
 
       {/* 2. Artwork & Images */}
       <Card className="space-y-5">
-        <SectionHeader title="Task Artwork" description="Upload image files (WebP, JPG, PNG ≤ 10MB). Both male and female illustrations are mandatory." />
+        <SectionHeader title="Task Artwork" description={`Upload image files (WebP, JPG, PNG ≤ ${MAX_IMAGE_LABEL}). Both male and female illustrations are mandatory.`} />
 
         <div className="grid gap-6 md:grid-cols-2">
           {/* Male Image */}
@@ -256,7 +270,7 @@ export function TaskForm({ initialTask }: { initialTask?: Task }) {
             <label className="flex flex-col items-center justify-center border-2 border-dashed border-line hover:border-accent/60 rounded-xl p-6 cursor-pointer transition-colors bg-surface-inset/40 hover:bg-surface-inset/80">
               <Upload className="w-6 h-6 text-ink-muted mb-2" />
               <span className="text-xs font-medium text-ink">Click to upload file</span>
-              <span className="text-[11px] text-ink-faint mt-0.5">WebP, PNG, JPG up to 10MB</span>
+              <span className="text-[11px] text-ink-faint mt-0.5">WebP, PNG, JPG up to {MAX_IMAGE_LABEL}</span>
               <input
                 type="file"
                 accept="image/*"
@@ -299,7 +313,7 @@ export function TaskForm({ initialTask }: { initialTask?: Task }) {
             <label className="flex flex-col items-center justify-center border-2 border-dashed border-line hover:border-accent/60 rounded-xl p-6 cursor-pointer transition-colors bg-surface-inset/40 hover:bg-surface-inset/80">
               <Upload className="w-6 h-6 text-ink-muted mb-2" />
               <span className="text-xs font-medium text-ink">Click to upload file</span>
-              <span className="text-[11px] text-ink-faint mt-0.5">WebP, PNG, JPG up to 10MB</span>
+              <span className="text-[11px] text-ink-faint mt-0.5">WebP, PNG, JPG up to {MAX_IMAGE_LABEL}</span>
               <input
                 type="file"
                 accept="image/*"
@@ -450,6 +464,7 @@ export function TaskForm({ initialTask }: { initialTask?: Task }) {
           <Switch
             checked={form.allowsPartial}
             onCheckedChange={(checked) => update('allowsPartial', checked)}
+            disabled={form.proofCount > 0}
             label="Allows Partial Completion"
             description="Award reduced XP when the target isn't fully met."
           />
@@ -469,7 +484,71 @@ export function TaskForm({ initialTask }: { initialTask?: Task }) {
         </div>
       </Card>
 
-      {/* 5. Reward Eligibility preview */}
+      {/* 5. Proof (optional) */}
+      <Card className="space-y-4">
+        <SectionHeader
+          title="Proof"
+          description="Optional. Hunters complete a proof task by uploading photos; you review them in the Review Queue, and XP and rewards are paid only when you approve."
+        />
+        <Switch
+          checked={form.proofCount > 0}
+          onCheckedChange={(checked) =>
+            setForm((f) => ({ ...f, proofCount: checked ? 1 : 0, allowsPartial: checked ? false : f.allowsPartial }))
+          }
+          label="Require photo proof"
+          description="Partial completion isn't available for proof tasks."
+        />
+        {form.proofCount > 0 && (
+          <Select
+            label="Photos required"
+            value={String(form.proofCount)}
+            onChange={(e) => update('proofCount', Number(e.target.value))}
+          >
+            {[1, 2, 3, 4, 5].map((n) => (
+              <option key={n} value={String(n)}>{`${n} photo${n === 1 ? '' : 's'}`}</option>
+            ))}
+          </Select>
+        )}
+      </Card>
+
+      {/* 6. Special reward (optional) */}
+      <Card className="space-y-4">
+        <SectionHeader
+          title="Special Reward"
+          description="Optional. Without one, this task gives only its XP. With one, every hunter who completes it gets one scratch card from that reward — free or paid task alike."
+        />
+        <Switch
+          checked={form.specialRewardId !== null}
+          onCheckedChange={(checked) => update('specialRewardId', checked ? (specialRewards[0]?.id ?? null) : null)}
+          disabled={specialRewards.length === 0}
+          label="Enable task-specific special reward"
+          description={
+            specialRewards.length === 0
+              ? 'No special rewards yet — create one under Rewards → Special rewards first.'
+              : 'Completing this task also grants a card from the reward you pick.'
+          }
+        />
+        {form.specialRewardId !== null && (
+          <Select
+            label="Special reward"
+            value={form.specialRewardId}
+            onChange={(e) => update('specialRewardId', e.target.value)}
+          >
+            {specialRewards.map((r) => (
+              <option key={r.id} value={r.id}>
+                {`${r.description || `Special reward #${r.value}`}${r.isActive ? '' : ' (inactive)'} · ${r.coupons.filter((c) => c.isActive).length} active coupon${r.coupons.filter((c) => c.isActive).length === 1 ? '' : 's'}`}
+              </option>
+            ))}
+          </Select>
+        )}
+        {initialTask?.specialRewardId && form.specialRewardId !== initialTask.specialRewardId && (
+          <p className="text-xs text-warn-ink">
+            Changing or removing it is refused once a hunter has received this task&apos;s special reward.
+          </p>
+        )}
+      </Card>
+
+      {/* 7. Reward Eligibility preview */}
       <Card className="space-y-3">
         <SectionHeader title="Reward Eligibility" description="Auto-derived from the XP reward relative to this task type's cap." />
         <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-lg border border-line bg-surface-inset/30 text-ink-muted">
@@ -493,6 +572,48 @@ export function TaskForm({ initialTask }: { initialTask?: Task }) {
           {submitting ? 'Saving...' : initialTask ? 'Save Changes' : 'Create Task'}
         </Button>
       </div>
+      <ConfirmDialog
+        open={confirmSave}
+        title={initialTask ? 'Save these changes?' : 'Create this task?'}
+        message={
+          <div className="space-y-3">
+            <div className="flex items-start gap-2.5 p-3 rounded-lg border border-amber-500/20 bg-amber-500/10 text-warn-ink">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>
+                Please recheck everything before saving.{' '}
+                {initialTask
+                  ? 'Changes reach every hunter who has this task straight away.'
+                  : 'Once hunters are assigned this task it can no longer be deleted — only deactivated.'}
+              </span>
+            </div>
+            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
+              <dt className="text-ink-faint">Title</dt>
+              <dd className="text-ink font-medium truncate">{form.title.trim()}</dd>
+              <dt className="text-ink-faint">Type</dt>
+              <dd className="text-ink">{taskTypeLabel(form.taskType)} · {recurrenceLabel(form.isRecurring)}</dd>
+              <dt className="text-ink-faint">XP</dt>
+              <dd className="text-ink">{form.xpReward ?? 0} XP{form.allowsPartial ? ' (partial allowed)' : ''}</dd>
+              <dt className="text-ink-faint">Dates</dt>
+              <dd className="text-ink">{form.startDate || '—'}{form.endDate ? ` → ${form.endDate}` : form.isRecurring ? ' → no end' : ''}</dd>
+              <dt className="text-ink-faint">Price</dt>
+              <dd className="text-ink">{form.isPaid ? `₹${form.price ?? 0}` : 'Free'}</dd>
+              <dt className="text-ink-faint">Proof</dt>
+              <dd className="text-ink">{form.proofCount > 0 ? `${form.proofCount} photo${form.proofCount === 1 ? '' : 's'}, reviewed before XP` : 'Not required'}</dd>
+              <dt className="text-ink-faint">Special reward</dt>
+              <dd className="text-ink truncate">
+                {form.specialRewardId
+                  ? specialRewards.find((r) => r.id === form.specialRewardId)?.description ?? 'Selected'
+                  : 'None — XP only'}
+              </dd>
+            </dl>
+          </div>
+        }
+        confirmLabel={initialTask ? 'Yes, save changes' : 'Yes, create task'}
+        busyLabel="Saving..."
+        busy={submitting}
+        onCancel={() => setConfirmSave(false)}
+        onConfirm={save}
+      />
     </form>
   );
 }

@@ -207,9 +207,9 @@ export async function getNeedsAttention(): Promise<NeedsAttentionItem[]> {
     ...reviews.map((r) => ({
       id: `att_review_${r.id}`,
       type: 'gps_review' as const,
-      title: `Flagged submission — ${r.taskTitle}`,
-      description: `${r.userName}: ${r.flagReason}`,
-      timestamp: r.submittedAt,
+      title: `Proof to review — ${r.taskTitle}`,
+      description: `${r.userName} sent ${r.proofUrls.length} photo${r.proofUrls.length === 1 ? '' : 's'}`,
+      timestamp: r.submittedAt ?? new Date().toISOString(),
       href: '/tasks/review',
     })),
     ...users

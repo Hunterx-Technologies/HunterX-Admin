@@ -48,10 +48,10 @@ const NAV_ITEMS: NavItem[] = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard, enabled: true },
   { name: 'Users', href: '/users', icon: Users, enabled: true },
   { name: 'Tasks', href: '/tasks', icon: ListChecks, enabled: true },
+  { name: 'Rewards & Coupons', href: '/rewards', icon: Gift, enabled: true },
   { name: 'Leaderboards', href: '/leaderboards', icon: Trophy, enabled: false },
   { name: 'Subscriptions & Billing', href: '/subscriptions', icon: CreditCard, enabled: false },
   { name: 'Referrals', href: '/referrals', icon: Share2, enabled: false },
-  { name: 'Rewards & Coupons', href: '/rewards', icon: Gift, enabled: false },
   { name: 'Feedback & Support', href: '/feedback', icon: MessageSquare, enabled: false },
   { name: 'Cosmetics & Dragons', href: '/cosmetics', icon: Gem, enabled: false },
   { name: 'Notifications', href: '/notifications', icon: Bell, enabled: true },
@@ -84,11 +84,6 @@ function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () 
             <Icon className="w-4.5 h-4.5 shrink-0" />
             <span className="truncate">{item.name}</span>
             {active && <ChevronRight className="w-4 h-4 ml-auto shrink-0" />}
-            {!item.enabled && (
-              <span className="ml-auto shrink-0 text-[9px] text-ink-faint border border-line rounded-full px-1.5 py-0.5 uppercase tracking-wider">
-                Soon
-              </span>
-            )}
           </Link>
         );
       })}

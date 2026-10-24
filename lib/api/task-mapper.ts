@@ -41,5 +41,8 @@ export function mapRawTaskToTask(raw: any): Task {
     isPaid: Boolean(raw.is_paid),
     price: raw.price != null ? (typeof raw.price === 'string' ? raw.price : String(raw.price)) : null,
     currency: raw.currency || 'INR',
+    canDelete: raw.can_delete === true,
+    specialRewardId: raw.special_reward_id != null ? String(raw.special_reward_id) : null,
+    proofCount: Number(raw.proof_count ?? 0),
   };
 }

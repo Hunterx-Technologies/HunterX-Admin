@@ -1,6 +1,6 @@
 'use server';
 
-import type { Task, TaskInput, PendingReviewItem } from '@/types/task';
+import type { Task, TaskInput, ProofDecision } from '@/types/task';
 import type { ApiResponse } from '@/types/api';
 import { apiClient, unwrap } from '@/lib/api/client';
 import { mapRawTaskToTask } from '@/lib/api/task-mapper';
@@ -36,6 +36,8 @@ function toTaskPayload(input: TaskInput) {
     target_value: input.targetValue,
     target_unit: input.targetUnit || null,
     xp_reward: xpReward,
+    special_reward_id: input.specialRewardId,
+    proof_count: input.proofCount,
     xp_partial: xpPartial,
     allows_partial: input.allowsPartial,
     recurrence_days: input.recurrenceDays,
@@ -50,6 +52,19 @@ export async function createTask(input: FormData | TaskInput): Promise<Task> {
   return mapRawTaskToTask(raw.task);
 }
 
+/**
+ * Switches a task on or off. Off = hunters no longer see it or get it
+ * assigned; their past completions and XP are kept.
+ */
+export async function setTaskActive(id: string, isActive: boolean): Promise<void> {
+  await unwrap(apiClient.patch<ApiResponse<unknown>>(`/admin/tasks/${id}`, { is_active: isActive }));
+}
+
+/** Only for a task no hunter has been assigned or touched (Task.canDelete); also deletes its images. */
+export async function deleteTask(id: string): Promise<void> {
+  await unwrap(apiClient.delete<ApiResponse<unknown>>(`/admin/tasks/${id}`));
+}
+
 export async function updateTask(id: string, input: FormData | TaskInput): Promise<Task | null> {
   try {
     const payload = input instanceof FormData ? input : toTaskPayload(input);
@@ -61,6 +76,7 @@ export async function updateTask(id: string, input: FormData | TaskInput): Promi
   }
 }
 
-export async function decideReview(id: string, status: 'approved' | 'rejected'): Promise<PendingReviewItem> {
-  return unwrap(apiClient.post<ApiResponse<PendingReviewItem>>(`/admin/tasks/review-queue/${id}/decision`, { status }));
+/** note is required for RESUBMIT / REJECT and shown to the hunter. */
+export async function decideReview(id: string, decision: ProofDecision, note?: string): Promise<void> {
+  await unwrap(apiClient.post<ApiResponse<unknown>>(`/admin/tasks/review-queue/${id}/decision`, { decision, note }));
 }

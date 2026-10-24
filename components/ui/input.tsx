@@ -4,10 +4,12 @@ import { cn } from '@/lib/utils';
 export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   error?: string;
+  /** Small helper text under the field (hidden while an error shows). */
+  hint?: string;
 }
 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, type = 'text', label, error, required, ...props }, ref) => {
+  ({ className, type = 'text', label, error, hint, required, ...props }, ref) => {
     return (
       <div className="w-full space-y-1.5">
         {label && (
@@ -28,6 +30,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           {...props}
         />
         {error && <span className="text-xs text-bad-ink font-medium">{error}</span>}
+        {!error && hint && <span className="block text-xs text-ink-faint">{hint}</span>}
       </div>
     );
   }

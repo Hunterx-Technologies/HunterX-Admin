@@ -100,6 +100,7 @@ export function SessionTimeoutModal() {
   const lastActivityMsRef = React.useRef<number>(Date.now());
   const openRef = React.useRef(false);
   const isLoggingOutRef = React.useRef(false);
+  const silentRefreshRef = React.useRef(false);
 
   const clearTimers = React.useCallback(() => {
     if (countdownIntervalRef.current) {
@@ -141,6 +142,26 @@ export function SessionTimeoutModal() {
     setOpen(true);
   }, []);
 
+  // The admin is actively using the panel: renew the token quietly instead of
+  // interrupting them. The modal only appears if that renewal fails.
+  const silentRefresh = React.useCallback(async (onFail: () => void) => {
+    if (silentRefreshRef.current) return;
+    silentRefreshRef.current = true;
+    try {
+      const res = await refreshTokenAction();
+      if (!res.success || !res.accessToken) onFail();
+    } catch {
+      onFail();
+    } finally {
+      silentRefreshRef.current = false;
+    }
+  }, []);
+
+  const isRecentlyActive = React.useCallback(
+    () => Date.now() - lastActivityMsRef.current < IDLE_TIMEOUT_MS,
+    [IDLE_TIMEOUT_MS]
+  );
+
   // Periodic heartbeat session check (runs every 3s + on visibility/focus)
   const checkSession = React.useCallback(() => {
     if (openRef.current) return;
@@ -164,14 +185,20 @@ export function SessionTimeoutModal() {
     const msLeft = expMs - nowMs;
     const secsLeft = Math.floor(msLeft / 1000);
 
-    if (secsLeft <= 0) {
-      // Token expired: 30s grace period to refresh or logout
-      openSessionModal(Date.now() + 30 * 1000, true);
-    } else if (secsLeft <= WARNING_THRESHOLD) {
-      // Within warning threshold: countdown to expiration
-      openSessionModal(expMs, false);
-    }
-  }, [openSessionModal, WARNING_THRESHOLD, IDLE_TIMEOUT_MS]);
+    if (secsLeft > WARNING_THRESHOLD) return;
+
+    // Token is about to expire (or has) while the admin is active: renew it
+    // silently. Only fall back to the modal if the renewal fails.
+    silentRefresh(() => {
+      if (secsLeft <= 0) {
+        // Token expired: 30s grace period to refresh or logout
+        openSessionModal(Date.now() + 30 * 1000, true);
+      } else {
+        // Within warning threshold: countdown to expiration
+        openSessionModal(expMs, false);
+      }
+    });
+  }, [openSessionModal, silentRefresh, WARNING_THRESHOLD, IDLE_TIMEOUT_MS]);
 
   // Track user activity to detect idle state
   React.useEffect(() => {
@@ -234,12 +261,14 @@ export function SessionTimeoutModal() {
       }
 
       if (openRef.current) return;
-      openSessionModal(Date.now() + 30 * 1000, true);
+      const showModal = () => openSessionModal(Date.now() + 30 * 1000, true);
+      if (isRecentlyActive()) silentRefresh(showModal);
+      else showModal();
     };
 
     window.addEventListener('hunterx-session-expired', handleSessionEvent);
     return () => window.removeEventListener('hunterx-session-expired', handleSessionEvent);
-  }, [openSessionModal, performLogout]);
+  }, [openSessionModal, performLogout, isRecentlyActive, silentRefresh]);
 
   // Expose browser console test helper: window.__testSessionTimeout(30)
   React.useEffect(() => {
