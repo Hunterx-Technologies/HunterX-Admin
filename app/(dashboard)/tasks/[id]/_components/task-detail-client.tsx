@@ -159,6 +159,7 @@ export function TaskDetailClient({
         <Field label="Level Target" value={task.levelTarget === 'ALL' ? 'All Levels' : task.levelTarget} />
         <Field label="Allows Partial" value={task.allowsPartial ? `Yes (${task.xpPartial} XP)` : 'No'} />
         <Field label="Default Daily" value={task.isDefaultDaily ? 'Yes' : 'No'} />
+        <Field label="Routine" value={task.isRoutine ? 'Yes — on for every hunter unless they turn it off' : 'No — every hunter'} />
         <Field
           label="Special Reward"
           value={

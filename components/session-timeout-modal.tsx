@@ -19,59 +19,21 @@ function getCookie(name: string): string | null {
   }
 }
 
-function parseJwtExp(token: string): number | null {
-  try {
-    const cleanToken = token.replace(/^"(.*)"$/, '$1').trim();
-    const parts = cleanToken.split('.');
-    if (parts.length !== 3) return null;
-    const base64Url = parts[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(
-      atob(base64)
-        .split('')
-        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-        .join('')
-    );
-    const parsed = JSON.parse(jsonPayload);
-    return typeof parsed.exp === 'number' ? parsed.exp : null;
-  } catch {
-    return null;
-  }
+// When the access token runs out (seconds since epoch). The token itself is
+// HttpOnly; lib/auth/cookies.ts writes its expiry here for this modal.
+function sessionExpiry(): number | null {
+  const raw = getCookie('session_expires_at');
+  const exp = raw ? Number(raw) : NaN;
+  return Number.isFinite(exp) ? exp : null;
 }
 
+// UI only — the API checks the role on every admin request.
 function isUserAdmin(): boolean {
   try {
     const userCookie = getCookie('user');
-    if (userCookie) {
-      try {
-        const user = JSON.parse(userCookie);
-        if (user?.role && String(user.role).toLowerCase() === 'admin') {
-          return true;
-        }
-      } catch {}
-    }
-    const accessToken = getCookie('access_token');
-    if (accessToken) {
-      const parts = accessToken.split('.');
-      if (parts.length === 3) {
-        try {
-          const base64Url = parts[1];
-          const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-          const jsonPayload = decodeURIComponent(
-            atob(base64)
-              .split('')
-              .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-              .join('')
-          );
-          const parsed = JSON.parse(jsonPayload);
-          const role = parsed.role || parsed.userRole || parsed.roles;
-          if (typeof role === 'string' && role.toLowerCase() === 'admin') return true;
-          if (Array.isArray(role) && role.some((r) => String(r).toLowerCase() === 'admin')) return true;
-        } catch {}
-      }
-      return true; // Default to true if access token exists in admin dashboard
-    }
-    return false;
+    if (!userCookie) return false;
+    const user = JSON.parse(userCookie);
+    return !!user?.role && String(user.role).toLowerCase() === 'admin';
   } catch {
     return false;
   }
@@ -149,7 +111,7 @@ export function SessionTimeoutModal() {
     silentRefreshRef.current = true;
     try {
       const res = await refreshTokenAction();
-      if (!res.success || !res.accessToken) onFail();
+      if (!res.success) onFail();
     } catch {
       onFail();
     } finally {
@@ -174,10 +136,7 @@ export function SessionTimeoutModal() {
       return;
     }
 
-    const accessToken = getCookie('access_token');
-    if (!accessToken) return;
-
-    const exp = parseJwtExp(accessToken);
+    const exp = sessionExpiry();
     if (!exp) return;
 
     const nowMs = Date.now();
@@ -329,7 +288,7 @@ export function SessionTimeoutModal() {
 
     try {
       const res = await refreshTokenAction();
-      if (res.success && res.accessToken) {
+      if (res.success) {
         openRef.current = false;
         expireTargetMsRef.current = null;
         if (countdownIntervalRef.current) {

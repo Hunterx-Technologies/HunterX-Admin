@@ -92,6 +92,8 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
 
   const [maleFilePreview, setMaleFilePreview] = React.useState<string | null>(null);
   const [femaleFilePreview, setFemaleFilePreview] = React.useState<string | null>(null);
+  // Shown under the upload box itself; the form-level error sits at the bottom of the page, out of view.
+  const [imageErrors, setImageErrors] = React.useState<Record<'male' | 'female', string | null>>({ male: null, female: null });
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -109,16 +111,14 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, gender: 'male' | 'female') => {
     const file = e.target.files?.[0];
+    // Reset so picking the same file again (e.g. after clearing it) still fires onChange.
+    e.target.value = '';
     if (!file) return;
 
     const fileError = imageFileError(file);
-    if (fileError) {
-      setError(fileError);
-      e.target.value = '';
-      return;
-    }
+    setImageErrors((errs) => ({ ...errs, [gender]: fileError }));
+    if (fileError) return;
 
-    setError(null);
     const previewUrl = URL.createObjectURL(file);
 
     if (gender === 'male') {
@@ -158,6 +158,9 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
   );
 
   const isEndDateValid = !form.isPaid || Boolean(form.endDate);
+  // Free recurring daily = routine: in every hunter's Daily Routine, on by
+  // default, and each hunter can turn it off (decided by the backend).
+  const isRoutine = form.taskType === 'DAILY_ADMIN' && form.isRecurring && !form.isPaid;
   const isPartialXpValid = !form.allowsPartial || ((form.xpReward ?? 0) >= 2);
 
   const isValid =
@@ -166,7 +169,6 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
     form.tag.trim().length > 0 &&
     hasMaleImage &&
     hasFemaleImage &&
-    form.targetUnit.trim().length > 0 &&
     form.xpReward != null &&
     form.xpReward > 0 &&
     form.xpReward <= cap &&
@@ -278,11 +280,18 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
                 onChange={(e) => handleFileChange(e, 'male')}
               />
             </label>
+            {imageErrors.male && (
+              <p className="flex items-start gap-1.5 text-xs text-bad-ink">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-px" />
+                <span>{imageErrors.male}</span>
+              </p>
+            )}
 
             {/* Preview */}
             {(maleFilePreview || form.imageUrlMale) && (
               <div className="flex items-center gap-3 pt-2 border-t border-line/60">
                 <img
+                  key={maleFilePreview || form.imageUrlMale}
                   src={maleFilePreview || form.imageUrlMale || ''}
                   alt="Male preview"
                   className="w-14 h-14 rounded-lg object-cover border border-line bg-surface-inset shrink-0"
@@ -321,11 +330,18 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
                 onChange={(e) => handleFileChange(e, 'female')}
               />
             </label>
+            {imageErrors.female && (
+              <p className="flex items-start gap-1.5 text-xs text-bad-ink">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-px" />
+                <span>{imageErrors.female}</span>
+              </p>
+            )}
 
             {/* Preview */}
             {(femaleFilePreview || form.imageUrlFemale) && (
               <div className="flex items-center gap-3 pt-2 border-t border-line/60">
                 <img
+                  key={femaleFilePreview || form.imageUrlFemale}
                   src={femaleFilePreview || form.imageUrlFemale || ''}
                   alt="Female preview"
                   className="w-14 h-14 rounded-lg object-cover border border-line bg-surface-inset shrink-0"
@@ -409,6 +425,15 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
           }
         />
 
+        {isRoutine && (
+          <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-lg border border-line bg-surface-inset/30 text-ink-muted text-xs">
+            <HelpCircle className="w-4 h-4 text-accent-ink shrink-0" />
+            <span>
+              Routine task: shown in every hunter&apos;s Daily Routine (onboarding and Home → Add task), on by default. Each hunter can turn it off. End date is optional.
+            </span>
+          </div>
+        )}
+
         {/* Date Window */}
         <div className="grid gap-4 sm:grid-cols-2">
           <DatePicker
@@ -447,7 +472,7 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
             value={form.targetValue ?? ''}
             onChange={(e) => update('targetValue', e.target.value ? Number(e.target.value) : null)}
           />
-          <Input label="Unit" placeholder="e.g. km, minutes, steps" value={form.targetUnit} onChange={(e) => update('targetUnit', e.target.value)} required />
+          <Input label="Unit" placeholder="e.g. km, minutes, steps" value={form.targetUnit} onChange={(e) => update('targetUnit', e.target.value)} />
         </div>
         <Input
           label={`XP Reward (max ${cap} for ${form.taskType === 'WEEKLY' ? 'Weekly' : form.taskType === 'MONTHLY' ? 'Monthly' : 'Daily'} tasks)`}
@@ -590,7 +615,7 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
               <dt className="text-ink-faint">Title</dt>
               <dd className="text-ink font-medium truncate">{form.title.trim()}</dd>
               <dt className="text-ink-faint">Type</dt>
-              <dd className="text-ink">{taskTypeLabel(form.taskType)} · {recurrenceLabel(form.isRecurring)}</dd>
+              <dd className="text-ink">{taskTypeLabel(form.taskType)} · {recurrenceLabel(form.isRecurring)}{isRoutine ? ' · Routine' : ''}</dd>
               <dt className="text-ink-faint">XP</dt>
               <dd className="text-ink">{form.xpReward ?? 0} XP{form.allowsPartial ? ' (partial allowed)' : ''}</dd>
               <dt className="text-ink-faint">Dates</dt>

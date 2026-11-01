@@ -4,6 +4,7 @@ import { cookies } from 'next/headers';
 import { apiClient } from '@/lib/api/client';
 import { env } from '@/config/env';
 import type { User } from '@/types/user';
+import { clearAuthCookies, jwtExpiry, writeAuthCookies, writeUserCookie } from '@/lib/auth/cookies';
 
 function parseJwtPayload(token: string): Record<string, any> | null {
   try {
@@ -59,27 +60,8 @@ function buildDevMockUser(): User {
 
 async function persistSession(user: User, accessToken: string, refreshToken: string) {
   const cookieStore = await cookies();
-
-  cookieStore.set('access_token', accessToken, {
-    path: '/',
-    httpOnly: false,
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: 60 * 60 * 24 * 7, // 7 days
-  });
-
-  cookieStore.set('refresh_token', refreshToken, {
-    path: '/',
-    httpOnly: false,
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: 60 * 60 * 24 * 30, // 30 days
-  });
-
-  cookieStore.set('user', JSON.stringify(user), {
-    path: '/',
-    httpOnly: false,
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: 60 * 60 * 24 * 7, // 7 days
-  });
+  writeAuthCookies(cookieStore, { accessToken, refreshToken });
+  writeUserCookie(cookieStore, user);
 }
 
 export async function loginAction(email: string, password: string) {
@@ -107,13 +89,6 @@ export async function loginAction(email: string, password: string) {
 
     // Extract user role directly from JWT access token payload
     const tokenPayload = parseJwtPayload(accessToken);
-    console.log('Login JWT claim keys:', Object.keys(tokenPayload ?? {}));
-    console.log('Login JWT role claims:', {
-      role: tokenPayload?.role,
-      userRole: tokenPayload?.userRole,
-      roles: tokenPayload?.roles,
-      authorities: tokenPayload?.authorities,
-    });
     const tokenRole = tokenPayload?.role || tokenPayload?.userRole;
 
     if (!tokenRole || String(tokenRole).toUpperCase() !== 'ADMIN') {
@@ -184,9 +159,7 @@ export async function logoutAction() {
     }
   }
 
-  cookieStore.delete('access_token');
-  cookieStore.delete('refresh_token');
-  cookieStore.delete('user');
+  clearAuthCookies(cookieStore);
   return { success: true };
 }
 
@@ -225,21 +198,11 @@ export async function refreshTokenAction() {
       return { success: false, error: 'No new access token provided.' };
     }
 
-    const userCookie = cookieStore.get('user')?.value;
-    if (userCookie) {
-      try {
-        const user = JSON.parse(userCookie);
-        await persistSession(user, newAccessToken, newRefreshToken);
-      } catch {
-        cookieStore.set('access_token', newAccessToken, { path: '/', httpOnly: false, secure: process.env.NODE_ENV === 'production', maxAge: 60 * 60 * 24 * 7 });
-        cookieStore.set('refresh_token', newRefreshToken, { path: '/', httpOnly: false, secure: process.env.NODE_ENV === 'production', maxAge: 60 * 60 * 24 * 30 });
-      }
-    } else {
-      cookieStore.set('access_token', newAccessToken, { path: '/', httpOnly: false, secure: process.env.NODE_ENV === 'production', maxAge: 60 * 60 * 24 * 7 });
-      cookieStore.set('refresh_token', newRefreshToken, { path: '/', httpOnly: false, secure: process.env.NODE_ENV === 'production', maxAge: 60 * 60 * 24 * 30 });
-    }
+    // The new tokens go only into HttpOnly cookies — this result reaches the
+    // browser, so it carries the expiry, never a token.
+    writeAuthCookies(cookieStore, { accessToken: newAccessToken, refreshToken: newRefreshToken });
 
-    return { success: true, accessToken: newAccessToken };
+    return { success: true, expiresAt: jwtExpiry(newAccessToken) };
   } catch (error: any) {
     if (env.isDev && refreshToken === 'dev-mock-refresh-token') {
       const userCookie = cookieStore.get('user')?.value;
@@ -247,7 +210,7 @@ export async function refreshTokenAction() {
         try {
           const user = JSON.parse(userCookie);
           await persistSession(user, 'dev-mock-access-token', 'dev-mock-refresh-token');
-          return { success: true, accessToken: 'dev-mock-access-token' };
+          return { success: true, expiresAt: null };
         } catch { }
       }
     }

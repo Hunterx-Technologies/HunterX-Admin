@@ -25,6 +25,7 @@ export function mapRawTaskToTask(raw: any): Task {
     imageUrlFemale: raw.image_url_female || null,
     taskType,
     isDefaultDaily: Boolean(raw.is_default_daily),
+    isRoutine: Boolean(raw.is_routine),
     isRecurring: Boolean(raw.is_recurring),
     recurrenceDays: Array.isArray(raw.recurrence_days) ? raw.recurrence_days : [],
     startDate: raw.start_date || null,

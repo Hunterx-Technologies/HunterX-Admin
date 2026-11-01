@@ -23,6 +23,8 @@ export type Task = {
   imageUrlFemale?: string | null;
   taskType: TaskType;
   isDefaultDaily: boolean;
+  /** Routine (built-in, or free recurring daily): on for every hunter unless they turn it off. Set by the backend. */
+  isRoutine: boolean;
   isRecurring: boolean;
   recurrenceDays: number[]; // 0=Sun..6=Sat — WEEKLY only
   startDate: string | null;

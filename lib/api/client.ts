@@ -1,6 +1,7 @@
 import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { env } from '@/config/env';
 import type { ApiResponse } from '@/types/api';
+import { ACCESS_TOKEN_COOKIE, AUTH_MODE_COOKIE, REFRESH_TOKEN_COOKIE, authCookieMode, clearAuthCookies, writeAuthCookies } from '@/lib/auth/cookies';
 
 export class ApiError extends Error {
   code: string;
@@ -31,74 +32,60 @@ export async function unwrap<T>(request: Promise<{ data: ApiResponse<T> }>): Pro
   return data.data;
 }
 
-export async function getAccessToken(): Promise<string | null> {
-  if (typeof window === 'undefined') {
-    try {
-      const { cookies } = await import('next/headers');
-      const cookieStore = await cookies();
-      return cookieStore.get('access_token')?.value || null;
-    } catch {
-      return null;
-    }
-  } else {
-    const match = document.cookie.match(/(?:^|; )access_token=([^;]*)/);
-    return match ? decodeURIComponent(match[1]) : null;
+// Tokens live in HttpOnly cookies (lib/auth/cookies.ts), readable only on
+// the server — where every apiClient call runs (the lib/api modules are
+// 'use server'). In the browser these find nothing, by design.
+
+async function serverCookies() {
+  if (typeof window !== 'undefined') return null;
+  try {
+    const { cookies } = await import('next/headers');
+    return await cookies();
+  } catch {
+    return null;
   }
+}
+
+// Cookies are read-only while a Server Component renders. A refresh there
+// would rotate the refresh token without being able to save the new one —
+// and the backend treats the old one as reused — so refreshing is left to
+// proxy.ts and Server Actions, where cookies can be written.
+async function canWriteCookies(): Promise<boolean> {
+  const jar = await serverCookies();
+  if (!jar) return false;
+  try {
+    jar.set(AUTH_MODE_COOKIE, authCookieMode, { path: '/', sameSite: 'lax' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function getAccessToken(): Promise<string | null> {
+  return (await serverCookies())?.get(ACCESS_TOKEN_COOKIE)?.value || null;
 }
 
 export async function getRefreshToken(): Promise<string | null> {
-  if (typeof window === 'undefined') {
-    try {
-      const { cookies } = await import('next/headers');
-      const cookieStore = await cookies();
-      return cookieStore.get('refresh_token')?.value || null;
-    } catch {
-      return null;
-    }
-  } else {
-    const match = document.cookie.match(/(?:^|; )refresh_token=([^;]*)/);
-    return match ? decodeURIComponent(match[1]) : null;
-  }
+  return (await serverCookies())?.get(REFRESH_TOKEN_COOKIE)?.value || null;
 }
 
 export async function setTokens(accessToken: string, refreshToken: string): Promise<void> {
-  if (typeof window === 'undefined') {
-    try {
-      const { cookies } = await import('next/headers');
-      const cookieStore = await cookies();
-      cookieStore.set('access_token', accessToken, {
-        path: '/',
-        httpOnly: false,
-        secure: process.env.NODE_ENV === 'production',
-        maxAge: 60 * 60 * 24 * 7,
-      });
-      cookieStore.set('refresh_token', refreshToken, {
-        path: '/',
-        httpOnly: false,
-        secure: process.env.NODE_ENV === 'production',
-        maxAge: 60 * 60 * 24 * 30,
-      });
-    } catch {}
-  } else {
-    document.cookie = `access_token=${encodeURIComponent(accessToken)}; path=/; max-age=${60 * 60 * 24 * 7}`;
-    document.cookie = `refresh_token=${encodeURIComponent(refreshToken)}; path=/; max-age=${60 * 60 * 24 * 30}`;
+  const jar = await serverCookies();
+  if (!jar) return;
+  try {
+    writeAuthCookies(jar, { accessToken, refreshToken });
+  } catch {
+    // Cookies can't be written while a Server Component renders; the
+    // proxy / next Server Action saves the refreshed pair instead.
   }
 }
 
 export async function clearTokens(): Promise<void> {
-  if (typeof window === 'undefined') {
-    try {
-      const { cookies } = await import('next/headers');
-      const cookieStore = await cookies();
-      cookieStore.delete('access_token');
-      cookieStore.delete('refresh_token');
-      cookieStore.delete('user');
-    } catch {}
-  } else {
-    document.cookie = 'access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-    document.cookie = 'refresh_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-    document.cookie = 'user=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-  }
+  const jar = await serverCookies();
+  if (!jar) return;
+  try {
+    clearAuthCookies(jar);
+  } catch {}
 }
 
 apiClient.interceptors.request.use(async (config) => {
@@ -115,10 +102,7 @@ apiClient.interceptors.request.use(async (config) => {
   if (!accessToken && !isAuthRoute) {
     const refreshToken = await getRefreshToken();
     if (refreshToken) {
-      refreshPromise ??= refreshAccessToken().finally(() => {
-        refreshPromise = null;
-      });
-      accessToken = await refreshPromise;
+      accessToken = await refreshOnce(refreshToken);
     }
   }
 
@@ -130,10 +114,23 @@ apiClient.interceptors.request.use(async (config) => {
   return config;
 });
 
-let refreshPromise: Promise<string | null> | null = null;
+// One refresh at a time per session. Keyed by refresh token: this module is
+// shared by every request on the server, so a single shared promise would
+// hand one admin's new token to another admin's request.
+const refreshesInFlight = new Map<string, Promise<string | null>>();
+
+function refreshOnce(refreshToken: string): Promise<string | null> {
+  let pending = refreshesInFlight.get(refreshToken);
+  if (!pending) {
+    pending = refreshAccessToken().finally(() => refreshesInFlight.delete(refreshToken));
+    refreshesInFlight.set(refreshToken, pending);
+  }
+  return pending;
+}
 
 async function refreshAccessToken(): Promise<string | null> {
   const refreshToken = await getRefreshToken();
+  if (refreshToken && !(await canWriteCookies())) return null;
   if (!refreshToken) {
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('hunterx-session-expired', { detail: { immediateLogout: false } }));
@@ -225,11 +222,8 @@ apiClient.interceptors.response.use(
     if (status === 401 && originalRequest && !originalRequest._retried && !isExcluded) {
       originalRequest._retried = true;
 
-      refreshPromise ??= refreshAccessToken().finally(() => {
-        refreshPromise = null;
-      });
-
-      const newAccessToken = await refreshPromise;
+      const refreshToken = await getRefreshToken();
+      const newAccessToken = refreshToken ? await refreshOnce(refreshToken) : null;
 
       if (newAccessToken) {
         originalRequest.headers.set('Authorization', `Bearer ${newAccessToken}`);

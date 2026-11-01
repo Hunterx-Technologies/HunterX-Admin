@@ -1,5 +1,15 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { env } from '@/config/env';
+import {
+  ACCESS_TOKEN_COOKIE,
+  AUTH_MODE_COOKIE,
+  REFRESH_TOKEN_COOKIE,
+  USER_COOKIE,
+  authCookieMode,
+  clearAuthCookies,
+  writeAuthCookies,
+} from '@/lib/auth/cookies';
 
 function isJwtExpired(token: string): boolean {
   try {
@@ -26,13 +36,24 @@ function isJwtExpired(token: string): boolean {
   }
 }
 
+// Puts freshly written auth cookies on the request too, so the page that
+// renders in this same request sees the new token, not the expired one.
+function nextWithCookies(request: NextRequest, write: (response: NextResponse) => void) {
+  const staged = NextResponse.next();
+  write(staged);
+  for (const cookie of staged.cookies.getAll()) request.cookies.set(cookie.name, cookie.value);
+  const response = NextResponse.next({ request: { headers: request.headers } });
+  for (const cookie of staged.cookies.getAll()) response.cookies.set(cookie);
+  return response;
+}
+
 export default async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Retrieve auth status and user details from cookies
-  const accessToken = request.cookies.get('access_token')?.value?.trim();
-  const refreshToken = request.cookies.get('refresh_token')?.value?.trim();
-  const userCookie = request.cookies.get('user')?.value;
+  const accessToken = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value?.trim();
+  const refreshToken = request.cookies.get(REFRESH_TOKEN_COOKIE)?.value?.trim();
+  const userCookie = request.cookies.get(USER_COOKIE)?.value;
 
   const hasToken = Boolean(accessToken && accessToken.length > 0);
   const tokenExpired = hasToken ? isJwtExpired(accessToken!) : false;
@@ -54,8 +75,7 @@ export default async function proxy(request: NextRequest) {
     // If access token is expired but refresh token exists, attempt refresh
     if (tokenExpired && refreshToken && isAdmin) {
       try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/api';
-        const res = await fetch(`${apiUrl}/auth/refresh`, {
+        const res = await fetch(`${env.apiUrl}/auth/refresh`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ refreshToken }),
@@ -65,20 +85,9 @@ export default async function proxy(request: NextRequest) {
         const newRefreshToken = data?.data?.refresh_token || data?.data?.refreshToken || refreshToken;
 
         if (res.ok && newAccessToken) {
-          const response = NextResponse.next();
-          response.cookies.set('access_token', newAccessToken, {
-            path: '/',
-            httpOnly: false,
-            secure: process.env.NODE_ENV === 'production',
-            maxAge: 60 * 60 * 24 * 7,
-          });
-          response.cookies.set('refresh_token', newRefreshToken, {
-            path: '/',
-            httpOnly: false,
-            secure: process.env.NODE_ENV === 'production',
-            maxAge: 60 * 60 * 24 * 30,
-          });
-          return response;
+          return nextWithCookies(request, (response) =>
+            writeAuthCookies(response.cookies, { accessToken: newAccessToken, refreshToken: newRefreshToken })
+          );
         }
       } catch {}
     }
@@ -89,9 +98,7 @@ export default async function proxy(request: NextRequest) {
       url.searchParams.set('redirectTo', pathname);
     }
     const response = NextResponse.redirect(url);
-    response.cookies.delete('access_token');
-    response.cookies.delete('refresh_token');
-    response.cookies.delete('user');
+    clearAuthCookies(response.cookies);
     return response;
   }
 
@@ -100,6 +107,14 @@ export default async function proxy(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = '/';
     return NextResponse.redirect(url);
+  }
+
+  // Cookies written before HttpOnly (or under the other rollback mode):
+  // rewrite them once, same values, so nobody is signed out by the switch.
+  if (hasToken && request.cookies.get(AUTH_MODE_COOKIE)?.value !== authCookieMode) {
+    return nextWithCookies(request, (response) =>
+      writeAuthCookies(response.cookies, { accessToken: accessToken!, refreshToken })
+    );
   }
 
   return NextResponse.next();
