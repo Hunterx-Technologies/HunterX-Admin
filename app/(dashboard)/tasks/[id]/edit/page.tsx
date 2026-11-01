@@ -1,10 +1,11 @@
 import { notFound } from 'next/navigation';
 import { getTaskById } from '@/lib/api/tasks';
+import { getRewards } from '@/lib/api/rewards';
 import { TaskForm } from '../../_components/task-form';
 
 export default async function EditTaskPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const task = await getTaskById(id);
+  const [task, { triggers: specialRewards }] = await Promise.all([getTaskById(id), getRewards('special')]);
 
   if (!task) {
     notFound();
@@ -16,7 +17,7 @@ export default async function EditTaskPage({ params }: { params: Promise<{ id: s
         <h1 className="text-2xl font-bold tracking-tight text-ink">Edit Task</h1>
         <p className="text-sm text-ink-muted mt-1">{task.title}</p>
       </div>
-      <TaskForm initialTask={task} />
+      <TaskForm initialTask={task} specialRewards={specialRewards} />
     </div>
   );
 }

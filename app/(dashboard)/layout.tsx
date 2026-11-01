@@ -48,10 +48,10 @@ const NAV_ITEMS: NavItem[] = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard, enabled: true },
   { name: 'Users', href: '/users', icon: Users, enabled: true },
   { name: 'Tasks', href: '/tasks', icon: ListChecks, enabled: true },
+  { name: 'Rewards & Coupons', href: '/rewards', icon: Gift, enabled: true },
   { name: 'Leaderboards', href: '/leaderboards', icon: Trophy, enabled: false },
   { name: 'Subscriptions & Billing', href: '/subscriptions', icon: CreditCard, enabled: false },
   { name: 'Referrals', href: '/referrals', icon: Share2, enabled: false },
-  { name: 'Rewards & Coupons', href: '/rewards', icon: Gift, enabled: false },
   { name: 'Feedback & Support', href: '/feedback', icon: MessageSquare, enabled: false },
   { name: 'Cosmetics & Dragons', href: '/cosmetics', icon: Gem, enabled: false },
   { name: 'Notifications', href: '/notifications', icon: Bell, enabled: true },
@@ -84,16 +84,22 @@ function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () 
             <Icon className="w-4.5 h-4.5 shrink-0" />
             <span className="truncate">{item.name}</span>
             {active && <ChevronRight className="w-4 h-4 ml-auto shrink-0" />}
-            {!item.enabled && (
-              <span className="ml-auto shrink-0 text-[9px] text-ink-faint border border-line rounded-full px-1.5 py-0.5 uppercase tracking-wider">
-                Soon
-              </span>
-            )}
           </Link>
         );
       })}
     </>
   );
+}
+
+function getClientUser(): User | null {
+  if (typeof document === 'undefined') return null;
+  const match = document.cookie.match(/(?:^|; )user=([^;]*)/);
+  if (!match) return null;
+  try {
+    return JSON.parse(decodeURIComponent(match[1])) as User;
+  } catch {
+    return null;
+  }
 }
 
 function GlobalSearch() {
@@ -102,11 +108,23 @@ function GlobalSearch() {
   const [focused, setFocused] = React.useState(false);
   const [users, setUsers] = React.useState<User[]>([]);
   const [tasks, setTasks] = React.useState<Task[]>([]);
+  const [loading, setLoading] = React.useState(false);
+  const hasLoadedRef = React.useRef(false);
   const ref = React.useRef<HTMLDivElement>(null);
 
-  React.useEffect(() => {
-    getUsers().then(setUsers);
-    getTasks().then(setTasks);
+  const loadSearchData = React.useCallback(() => {
+    if (hasLoadedRef.current) return;
+    hasLoadedRef.current = true;
+    setLoading(true);
+    Promise.all([getUsers(), getTasks()])
+      .then(([u, t]) => {
+        setUsers(u);
+        setTasks(t);
+      })
+      .catch(() => {
+        hasLoadedRef.current = false;
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   React.useEffect(() => {
@@ -133,14 +151,23 @@ function GlobalSearch() {
       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-faint" />
       <input
         value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        onFocus={() => setFocused(true)}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          loadSearchData();
+        }}
+        onFocus={() => {
+          setFocused(true);
+          loadSearchData();
+        }}
         placeholder="Search users, tasks..."
         className="w-full pl-9 pr-3 py-2 rounded-lg border border-line bg-surface-inset/50 text-sm text-ink placeholder-ink-faint transition-all duration-200 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent"
       />
       {showDropdown && (
         <div className="absolute mt-2 w-full rounded-xl border border-line bg-surface shadow-2xl overflow-hidden z-40 max-h-80 overflow-y-auto">
-          {matchedUsers.length === 0 && matchedTasks.length === 0 && (
+          {loading && matchedUsers.length === 0 && matchedTasks.length === 0 && (
+            <p className="px-4 py-3 text-sm text-ink-faint">Searching...</p>
+          )}
+          {!loading && matchedUsers.length === 0 && matchedTasks.length === 0 && (
             <p className="px-4 py-3 text-sm text-ink-faint">No matches for &ldquo;{query}&rdquo;.</p>
           )}
           {matchedUsers.length > 0 && (
@@ -187,17 +214,26 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  // Start null on both server and client to keep hydration consistent; the effect reads the cookie.
   const [user, setUser] = React.useState<User | null>(null);
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
   const [themeColorOpen, setThemeColorOpen] = React.useState(false);
 
   React.useEffect(() => {
+    const clientUser = getClientUser();
+    if (clientUser) {
+      setUser(clientUser);
+      return;
+    }
+
     getSessionUser().then((sessionUser) => {
       if (sessionUser) {
         setUser(sessionUser);
+      } else {
+        router.push('/login');
       }
     });
-  }, []);
+  }, [router]);
 
   const handleLogout = async () => {
     await logoutAction();

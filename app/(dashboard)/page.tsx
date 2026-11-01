@@ -50,8 +50,15 @@ import {
   Trophy,
   AlertCircle,
 } from 'lucide-react';
+import { redirect } from 'next/navigation';
+import { getSessionUser } from '@/lib/auth/actions';
 
 export default async function DashboardPage() {
+  const user = await getSessionUser();
+  if (!user) {
+    redirect('/login');
+  }
+
   const [
     kpis,
     subscriptionOverview,
@@ -105,7 +112,7 @@ export default async function DashboardPage() {
       <section className="space-y-4">
         <h2 className="text-lg font-bold tracking-tight text-ink">Subscription & Revenue</h2>
         <div className="grid gap-4 grid-cols-[repeat(auto-fit,minmax(190px,1fr))]">
-          <StatCard name="MRR" value={`$${subscriptionOverview.mrr.toLocaleString()}`} icon={DollarSign} color="text-ok-ink" />
+          <StatCard name="MRR (Monthly Recurring Revenue)" value={`$${subscriptionOverview.mrr.toLocaleString()}`} icon={DollarSign} color="text-ok-ink" />
           <StatCard name="Active Subscribers" value={subscriptionOverview.activeSubscribers} icon={Users} />
           <StatCard name="New Subs Today / Week" value={`${subscriptionOverview.newSubsToday} / ${subscriptionOverview.newSubsWeek}`} icon={UserPlus} color="text-warn-ink" />
           <StatCard name="Churned This Week" value={subscriptionOverview.churnedThisWeek} icon={UserMinus} color="text-bad-ink" />
@@ -113,7 +120,7 @@ export default async function DashboardPage() {
         </div>
         <div className="grid gap-4 lg:grid-cols-3">
           <Card className="lg:col-span-2">
-            <h3 className="text-sm font-semibold text-ink mb-4">MRR — Last 90 Days</h3>
+            <h3 className="text-sm font-semibold text-ink mb-4">MRR (Monthly Recurring Revenue) — Last 90 Days</h3>
             <MrrTrendChart data={mrrTrend} />
           </Card>
           <Card>

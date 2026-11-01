@@ -43,9 +43,18 @@ function LoginForm() {
     }
   };
 
+  const isExpired = searchParams.get('expired') === '1';
+
   return (
     <Card glow className="border-line bg-surface-inset/60 shadow-xl">
       <form onSubmit={handleSubmit} noValidate className="space-y-5">
+        {isExpired && !error && (
+          <div className="flex items-center gap-2.5 p-3.5 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-400 text-sm">
+            <AlertTriangle className="w-4.5 h-4.5 shrink-0" />
+            <span>Your admin session has expired. Please sign in again.</span>
+          </div>
+        )}
+
         {error && (
           <div className="flex items-center gap-2.5 p-3.5 rounded-lg border border-red-500/20 bg-red-500/10 text-bad-ink text-sm">
             <AlertTriangle className="w-4.5 h-4.5 shrink-0" />

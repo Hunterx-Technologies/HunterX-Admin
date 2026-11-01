@@ -15,9 +15,10 @@ import type {
   Task,
   TaskStats,
   CompletionStatus,
-  TaskCompletionLogEntry,
   TaskAssignmentStats,
   PendingReviewItem,
+  ProofReviewPage,
+  ProofReviewStatus,
 } from '@/types/task';
 
 export async function getTasks(): Promise<Task[]> {
@@ -68,59 +69,90 @@ export async function getTaskStats(): Promise<TaskStats> {
   }
 }
 
-function mapRawCompletionToEntry(raw: any): TaskCompletionLogEntry {
-  return {
-    id: String(raw.id),
-    userId: String(raw.user_id),
-    userName: raw.user_name || 'Hunter',
-    hunterId: raw.hunter_id || '',
-    date: raw.date || new Date().toISOString(),
-    valueAchieved: raw.value_achieved ?? null,
-    status: (raw.status as CompletionStatus) || 'COMPLETED',
-    xpEarned: raw.xp_earned ?? 0,
-  };
-}
-
-export async function getTaskCompletionLog(taskId: string): Promise<TaskCompletionLogEntry[]> {
-  try {
-    const response = await apiClient.get<any>(`/admin/tasks/${taskId}/completions`);
-    const resData = response.data;
-    if (resData?.success && Array.isArray(resData.data)) {
-      return resData.data.map(mapRawCompletionToEntry);
-    }
-    return [];
-  } catch (error) {
-    return [];
-  }
-}
+const EMPTY_ASSIGNMENT_STATS: TaskAssignmentStats = {
+  usersAssigned: 0, shownToday: 0, firstShownOn: null, lastShownOn: null, usersCompleted: 0, completions: 0, completionRate: 0,
+};
 
 export async function getTaskAssignmentStats(taskId: string): Promise<TaskAssignmentStats> {
   try {
-    const response = await apiClient.get<any>(`/admin/tasks/${taskId}/assignment-stats`);
-    const resData = response.data;
-    if (resData?.success && resData.data) {
-      const s = resData.data;
-      return {
-        usersAssigned: s.users_assigned ?? 0,
-        completionRate: s.completion_rate ?? 0,
-        avgCompletionTimeMin: s.avg_completion_time_min ?? 0,
-      };
-    }
-    return { usersAssigned: 0, completionRate: 0, avgCompletionTimeMin: 0 };
-  } catch (error) {
-    return { usersAssigned: 0, completionRate: 0, avgCompletionTimeMin: 0 };
+    const response = await apiClient.get(`/admin/tasks/${taskId}/assignment-stats`);
+    const s = response.data?.success ? response.data.data : null;
+    if (!s) return EMPTY_ASSIGNMENT_STATS;
+    return {
+      usersAssigned: s.users_assigned ?? 0,
+      shownToday: s.shown_today ?? 0,
+      firstShownOn: s.first_shown_on ?? null,
+      lastShownOn: s.last_shown_on ?? null,
+      usersCompleted: s.users_completed ?? 0,
+      completions: s.completions ?? 0,
+      completionRate: s.completion_rate ?? 0,
+    };
+  } catch {
+    return EMPTY_ASSIGNMENT_STATS;
   }
 }
 
-export async function getPendingReviews(): Promise<PendingReviewItem[]> {
+interface RawProofReview {
+  id: string;
+  task_id: string;
+  task_title: string;
+  task_type: PendingReviewItem['taskType'];
+  xp_reward: number;
+  proof_count: number;
+  user_id: string;
+  user_name: string | null;
+  hunter_id: string | null;
+  schedule_date: string;
+  status: ProofReviewStatus;
+  proof_urls: string[];
+  proof_submitted_at: string | null;
+  reviewed_at: string | null;
+  review_note: string | null;
+  xp_earned: number;
+}
+
+const EMPTY_COUNTS: Record<ProofReviewStatus, number> = { IN_REVIEW: 0, RESUBMIT: 0, REJECTED: 0, COMPLETED: 0 };
+
+/** One page of proof submissions with that status (IN_REVIEW = the queue, oldest first). */
+export async function getProofReviews(status: ProofReviewStatus = 'IN_REVIEW', cursor?: string): Promise<ProofReviewPage & { error: string | null }> {
   try {
-    const response = await apiClient.get<any>('/admin/tasks/review-queue');
-    const resData = response.data;
-    if (resData?.success && Array.isArray(resData.data)) {
-      return resData.data;
-    }
-    return [];
-  } catch (error) {
-    return [];
+    const response = await apiClient.get('/admin/tasks/review-queue', { params: { status, ...(cursor ? { cursor } : {}) } });
+    const data = response.data?.data as { items: RawProofReview[]; next_cursor: string | null; counts: Record<string, number> };
+    return {
+      error: null,
+      nextCursor: data.next_cursor,
+      counts: {
+        IN_REVIEW: data.counts.in_review ?? 0,
+        RESUBMIT: data.counts.resubmit ?? 0,
+        REJECTED: data.counts.rejected ?? 0,
+        COMPLETED: data.counts.completed ?? 0,
+      },
+      items: data.items.map((r) => ({
+        id: r.id,
+        taskId: r.task_id,
+        taskTitle: r.task_title,
+        taskType: r.task_type,
+        xpReward: r.xp_reward,
+        proofCount: r.proof_count,
+        userId: r.user_id,
+        userName: r.user_name || 'Hunter',
+        hunterId: r.hunter_id,
+        scheduleDate: r.schedule_date,
+        status: r.status,
+        proofUrls: r.proof_urls,
+        submittedAt: r.proof_submitted_at,
+        reviewedAt: r.reviewed_at,
+        reviewNote: r.review_note,
+        xpEarned: r.xp_earned,
+      })),
+    };
+  } catch (error: unknown) {
+    console.error('[getProofReviews] failed:', error);
+    return { items: [], nextCursor: null, counts: EMPTY_COUNTS, error: error instanceof Error ? error.message : 'Failed to load the review queue.' };
   }
+}
+
+/** Submissions waiting for a decision (first page) — for counts and dashboard alerts. */
+export async function getPendingReviews(): Promise<PendingReviewItem[]> {
+  return (await getProofReviews('IN_REVIEW')).items;
 }

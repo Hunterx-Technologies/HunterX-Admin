@@ -42,8 +42,12 @@ export async function getUserStatsApi(): Promise<UserStats> {
         avgStreak: s.avg_streak ?? 0,
       };
     }
-  } catch (error) {
-    console.error('Failed to fetch user stats:', error);
+  } catch (error: any) {
+    if (error?.status === 401 || error?.status === 403 || error?.code === 'unauthorized') {
+      console.warn('getUserStatsApi: Unauthorized or session expired.');
+    } else {
+      console.error('Failed to fetch user stats:', error);
+    }
   }
   return { totalUsers: 0, activeToday: 0, avgLevel: 0, avgStreak: 0 };
 }
@@ -55,8 +59,12 @@ export async function getUsersRanksApi(): Promise<string[]> {
     if (resData?.success && Array.isArray(resData.data?.ranks)) {
       return resData.data.ranks;
     }
-  } catch (error) {
-    console.error('Failed to fetch user ranks:', error);
+  } catch (error: any) {
+    if (error?.status === 401 || error?.status === 403 || error?.code === 'unauthorized') {
+      console.warn('getUsersRanksApi: Unauthorized or session expired.');
+    } else {
+      console.error('Failed to fetch user ranks:', error);
+    }
   }
   return ['DORMANT', 'HOLLOW', 'PHANTOM', 'PREDATOR', 'VANGUARD', 'SHADOW', 'SOVEREIGN', 'MONARCH', 'VOID RULER', 'APEX CORE'];
 }
@@ -126,9 +134,15 @@ export async function getUsers(): Promise<User[]> {
 
 export async function getUserById(id: string): Promise<User | null> {
   try {
-    const users = await getUsers();
-    return users.find((u) => u.id === id) ?? null;
-  } catch (error) {
+    const response = await apiClient.get<any>(`/admin/users/${encodeURIComponent(id)}`);
+    const resData = response.data;
+    if (resData?.success && resData.data?.user) {
+      return mapRawUserToUser(resData.data.user);
+    }
+    return null;
+  } catch (error: any) {
+    const status = error?.response?.status ?? error?.status;
+    if (status === 401 || status === 403) throw error;
     return null;
   }
 }

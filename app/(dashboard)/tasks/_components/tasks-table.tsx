@@ -8,24 +8,21 @@ import { Select } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
-import type { Task, TaskType } from '@/types/task';
+import type { Task } from '@/types/task';
+import { recurrenceLabel, TASK_TYPE_GROUP_LABEL, taskTypeGroup, taskTypeLabel } from '@/lib/task-labels';
 import { Search, ListChecks } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
-
-const TYPE_LABEL: Record<TaskType, string> = {
-  DAILY_ADMIN: 'Daily',
-  WEEKLY: 'Weekly',
-  DAILY_FIXED: 'Daily (Fixed)',
-};
 
 export function TasksTable({ tasks }: { tasks: Task[] }) {
   const [query, setQuery] = React.useState('');
   const [type, setType] = React.useState('all');
   const [status, setStatus] = React.useState('all');
+  const [recurrence, setRecurrence] = React.useState('all');
 
   const filtered = tasks.filter((task) => {
     if (query && !task.title.toLowerCase().includes(query.toLowerCase())) return false;
-    if (type !== 'all' && task.taskType !== type) return false;
+    if (type !== 'all' && taskTypeGroup(task.taskType) !== type) return false;
+    if (recurrence !== 'all' && task.isRecurring !== (recurrence === 'recurring')) return false;
     if (status !== 'all' && task.status !== status) return false;
     return true;
   });
@@ -40,9 +37,16 @@ export function TasksTable({ tasks }: { tasks: Task[] }) {
         <div className="w-40">
           <Select value={type} onChange={(e) => setType(e.target.value)}>
             <option value="all">All Types</option>
-            {Object.entries(TYPE_LABEL).map(([value, label]) => (
+            {Object.entries(TASK_TYPE_GROUP_LABEL).map(([value, label]) => (
               <option key={value} value={value}>{label}</option>
             ))}
+          </Select>
+        </div>
+        <div className="w-40">
+          <Select value={recurrence} onChange={(e) => setRecurrence(e.target.value)}>
+            <option value="all">All</option>
+            <option value="recurring">Recurring</option>
+            <option value="one-time">One-time</option>
           </Select>
         </div>
         <div className="w-36">
@@ -69,13 +73,23 @@ export function TasksTable({ tasks }: { tasks: Task[] }) {
           {filtered.map((task) => (
             <TableRow key={task.id}>
               <TableCell>
-                <Link href={`/tasks/${task.id}`} className="font-medium text-ink hover:text-accent-ink transition-colors">
-                  {task.title}
-                </Link>
+                <div className="flex items-center gap-2">
+                  <Link href={`/tasks/${task.id}`} className="font-medium text-ink hover:text-accent-ink transition-colors">
+                    {task.title}
+                  </Link>
+                  {task.isPaid && (
+                    <Badge variant="warning" className="text-[10px] px-1.5 py-0.5 font-mono">
+                      ₹{task.price}
+                    </Badge>
+                  )}
+                </div>
                 <p className="text-xs text-ink-faint">{task.tag}</p>
               </TableCell>
               <TableCell>
-                <Badge variant="default">{TYPE_LABEL[task.taskType]}</Badge>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <Badge variant="default">{taskTypeLabel(task.taskType)}</Badge>
+                  <Badge variant="muted">{recurrenceLabel(task.isRecurring)}</Badge>
+                </div>
               </TableCell>
               <TableCell>{task.xpReward} XP</TableCell>
               <TableCell className="text-ink-muted">{task.levelTarget === 'ALL' ? 'All Levels' : task.levelTarget}</TableCell>

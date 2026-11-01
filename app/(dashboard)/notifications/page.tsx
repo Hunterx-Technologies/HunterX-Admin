@@ -1,8 +1,15 @@
 import { getBroadcasts } from '@/lib/api/notifications';
+import { getSessionUser } from '@/lib/auth/actions';
+import { redirect } from 'next/navigation';
 import { BroadcastForm } from './_components/broadcast-form';
 import { BroadcastHistory } from './_components/broadcast-history';
 
 export default async function NotificationsPage() {
+  const user = await getSessionUser();
+  if (!user) {
+    redirect('/login');
+  }
+
   const broadcasts = await getBroadcasts();
 
   return (
