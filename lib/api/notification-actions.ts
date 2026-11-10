@@ -1,8 +1,9 @@
 'use server';
 
 import type { ApiResponse } from '@/types/api';
-import type { BroadcastInput, BroadcastResult } from '@/types/notification';
+import type { BroadcastInput, BroadcastResult, BroadcastSchedule, ScheduleInput } from '@/types/notification';
 import { apiClient, unwrap } from '@/lib/api/client';
+import { mapSchedule, toSchedulePayload, type RawSchedule } from '@/lib/api/schedule-mapper';
 
 // Server Action invoked from the broadcast form (preview + send). Backend
 // validation errors (TITLE_TOO_LONG, INVALID_URL, ...) surface as ApiError
@@ -15,7 +16,6 @@ function toBroadcastPayload(input: BroadcastInput, dryRun: boolean) {
     url: input.url || undefined,
     audience: input.audience,
     inactive_days: input.audience === 'inactive' ? input.inactiveDays : undefined,
-    user_ids: input.audience === 'users' ? input.userIds.split(/[\s,]+/).filter(Boolean) : undefined,
     dry_run: dryRun,
   };
 }
@@ -33,4 +33,27 @@ export async function sendBroadcast(input: BroadcastInput, dryRun: boolean): Pro
     recipients: raw.recipients,
     reachableByPush: raw.reachable_by_push,
   };
+}
+
+// ── Scheduled / recurring broadcasts ──
+
+type ScheduleResponse = ApiResponse<{ schedule: RawSchedule }>;
+
+export async function createSchedule(input: ScheduleInput): Promise<BroadcastSchedule> {
+  const { schedule } = await unwrap(apiClient.post<ScheduleResponse>('/admin/notifications/schedules', toSchedulePayload(input)));
+  return mapSchedule(schedule);
+}
+
+export async function updateSchedule(id: string, input: ScheduleInput): Promise<BroadcastSchedule> {
+  const { schedule } = await unwrap(
+    apiClient.patch<ScheduleResponse>(`/admin/notifications/schedules/${encodeURIComponent(id)}`, toSchedulePayload(input))
+  );
+  return mapSchedule(schedule);
+}
+
+export async function changeScheduleState(id: string, action: 'pause' | 'resume' | 'cancel'): Promise<BroadcastSchedule> {
+  const { schedule } = await unwrap(
+    apiClient.post<ScheduleResponse>(`/admin/notifications/schedules/${encodeURIComponent(id)}/${action}`)
+  );
+  return mapSchedule(schedule);
 }

@@ -1,4 +1,3 @@
-import { Card } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { Broadcast } from '@/types/notification';
@@ -10,16 +9,12 @@ function pct(part: number, total: number) {
 
 function formatDate(iso: string | null) {
   if (!iso) return '—';
-  return new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  return new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' });
 }
 
 export function BroadcastHistory({ broadcasts }: { broadcasts: Broadcast[] }) {
   return (
-    <Card className="space-y-4">
-      <div>
-        <h2 className="text-base font-bold text-ink">Recent Broadcasts</h2>
-        <p className="text-sm text-ink-faint mt-0.5">Delivery and read stats update live as pushes go out.</p>
-      </div>
+    <>
       {broadcasts.length === 0 ? (
         <EmptyState icon={Megaphone} message="No broadcasts sent yet." />
       ) : (
@@ -51,6 +46,6 @@ export function BroadcastHistory({ broadcasts }: { broadcasts: Broadcast[] }) {
           </TableBody>
         </Table>
       )}
-    </Card>
+    </>
   );
 }

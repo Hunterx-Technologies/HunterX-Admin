@@ -84,7 +84,7 @@ export function MrrTrendChart({ data }: { data: TrendPoint[] }) {
           tick={AXIS_TEXT}
           axisLine={false}
           tickLine={false}
-          tickFormatter={(v) => `$${Math.round(v / 1000)}k`}
+          tickFormatter={(v) => (v >= 1000 ? `$${(v / 1000).toFixed(v >= 10000 ? 0 : 1)}k` : `$${Math.round(v)}`)}
           width={48}
         />
         <Tooltip

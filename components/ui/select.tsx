@@ -1,10 +1,11 @@
 'use client';
 
 import * as React from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronDown, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useOutsideClick } from '@/lib/hooks/use-outside-click';
-import { usePopoverPlacement } from '@/lib/hooks/use-popover-placement';
+import { useAnchoredPopover } from '@/lib/hooks/use-popover-placement';
 
 export interface SelectChangeEvent {
   target: { value: string; name?: string };
@@ -46,14 +47,16 @@ export const Select = React.forwardRef<HTMLButtonElement, SelectProps>(
     const [open, setOpen] = React.useState(false);
     const [highlighted, setHighlighted] = React.useState(0);
     const containerRef = React.useRef<HTMLDivElement>(null);
+    const listboxId = React.useId();
+    const anchorRef = React.useRef<HTMLDivElement>(null);
     const panelRef = React.useRef<HTMLDivElement>(null);
 
     const options = React.useMemo(() => extractOptions(children), [children]);
     const selectedIndex = options.findIndex((o) => o.value === String(value ?? ''));
-    const placement = usePopoverPlacement(open, containerRef, panelRef);
+    const { placement, style: panelStyle } = useAnchoredPopover(open, anchorRef, panelRef, { matchWidth: true });
 
     const close = React.useCallback(() => setOpen(false), []);
-    useOutsideClick(containerRef, close, open);
+    useOutsideClick([containerRef, panelRef], close, open);
 
     React.useEffect(() => {
       if (open) setHighlighted(selectedIndex >= 0 ? selectedIndex : 0);
@@ -95,7 +98,7 @@ export const Select = React.forwardRef<HTMLButtonElement, SelectProps>(
         {label && (
           <label className="text-xs font-semibold text-ink-muted uppercase tracking-wider">{label}</label>
         )}
-        <div className="relative">
+        <div className="relative" ref={anchorRef}>
           <button
             ref={ref}
             type="button"
@@ -107,6 +110,7 @@ export const Select = React.forwardRef<HTMLButtonElement, SelectProps>(
             role="combobox"
             aria-haspopup="listbox"
             aria-expanded={open}
+            aria-controls={listboxId}
             className={cn(
               'w-full flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-lg border border-line bg-surface-inset/50 text-ink text-left text-sm transition-all duration-200 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent focus:bg-surface-inset disabled:opacity-50 disabled:pointer-events-none cursor-pointer',
               open && 'border-accent ring-1 ring-accent bg-surface-inset',
@@ -122,15 +126,14 @@ export const Select = React.forwardRef<HTMLButtonElement, SelectProps>(
             />
           </button>
 
-          {open && (
+          {open && createPortal(
             <div
               ref={panelRef}
+              id={listboxId}
               role="listbox"
               data-placement={placement}
-              className={cn(
-                'popover-pop absolute z-40 left-0 min-w-full w-max max-w-[min(20rem,90vw)] max-h-64 overflow-y-auto rounded-xl border border-line bg-surface shadow-2xl py-1',
-                placement === 'top' ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
-              )}
+              style={panelStyle}
+              className="popover-pop z-[60] w-max max-w-[min(20rem,90vw)] max-h-64 overflow-y-auto rounded-xl border border-line bg-surface shadow-2xl py-1"
             >
               {options.length === 0 && (
                 <div className="px-3.5 py-2.5 text-sm text-ink-faint">No options</div>
@@ -159,7 +162,8 @@ export const Select = React.forwardRef<HTMLButtonElement, SelectProps>(
                   </div>
                 );
               })}
-            </div>
+            </div>,
+            document.body
           )}
         </div>
       </div>

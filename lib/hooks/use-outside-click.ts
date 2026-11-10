@@ -1,16 +1,25 @@
 import * as React from 'react';
 
-/** Closes a popover/menu on an outside pointer press or Escape, while `active`. */
-export function useOutsideClick<T extends HTMLElement>(
-  ref: React.RefObject<T | null>,
+type AnyRef = React.RefObject<HTMLElement | null>;
+
+/**
+ * Closes a popover/menu on an outside pointer press or Escape, while `active`.
+ * Pass several refs when the popover is portaled outside its trigger's DOM tree.
+ */
+export function useOutsideClick(
+  refs: AnyRef | AnyRef[],
   onOutside: () => void,
   active: boolean
 ) {
   React.useEffect(() => {
     if (!active) return;
+    // Ref objects are stable, so capturing them once per activation is safe.
+    const refList = Array.isArray(refs) ? refs : [refs];
 
     const onPointerDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onOutside();
+      const target = e.target as Node;
+      const inside = refList.some((r) => r.current?.contains(target));
+      if (!inside) onOutside();
     };
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onOutside();
@@ -22,5 +31,6 @@ export function useOutsideClick<T extends HTMLElement>(
       document.removeEventListener('mousedown', onPointerDown);
       document.removeEventListener('keydown', onKeyDown);
     };
-  }, [active, ref, onOutside]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, onOutside]);
 }

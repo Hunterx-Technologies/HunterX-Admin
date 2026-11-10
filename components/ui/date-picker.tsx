@@ -1,10 +1,11 @@
 'use client';
 
 import * as React from 'react';
+import { createPortal } from 'react-dom';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useOutsideClick } from '@/lib/hooks/use-outside-click';
-import { usePopoverPlacement } from '@/lib/hooks/use-popover-placement';
+import { useAnchoredPopover } from '@/lib/hooks/use-popover-placement';
 
 export interface DatePickerChangeEvent {
   target: { value: string; name?: string };
@@ -81,11 +82,12 @@ export const DatePicker = React.forwardRef<HTMLButtonElement, DatePickerProps>(
     const [open, setOpen] = React.useState(false);
     const [view, setView] = React.useState<YMD>(() => selected ?? t);
     const containerRef = React.useRef<HTMLDivElement>(null);
+    const anchorRef = React.useRef<HTMLDivElement>(null);
     const panelRef = React.useRef<HTMLDivElement>(null);
-    const placement = usePopoverPlacement(open, containerRef, panelRef);
+    const { placement, style: panelStyle } = useAnchoredPopover(open, anchorRef, panelRef);
 
     const close = React.useCallback(() => setOpen(false), []);
-    useOutsideClick(containerRef, close, open);
+    useOutsideClick([containerRef, panelRef], close, open);
 
     React.useEffect(() => {
       if (open) setView(selected ?? t);
@@ -117,7 +119,7 @@ export const DatePicker = React.forwardRef<HTMLButtonElement, DatePickerProps>(
             {required && <span className="text-bad-ink ml-0.5">*</span>}
           </label>
         )}
-        <div className="relative">
+        <div className="relative" ref={anchorRef}>
           <button
             ref={ref}
             type="button"
@@ -137,14 +139,12 @@ export const DatePicker = React.forwardRef<HTMLButtonElement, DatePickerProps>(
             <CalendarIcon className={cn('w-4 h-4 text-ink-faint shrink-0', open && 'text-accent-ink')} />
           </button>
 
-          {open && (
+          {open && createPortal(
             <div
               ref={panelRef}
               data-placement={placement}
-              className={cn(
-                'popover-pop absolute z-40 w-72 rounded-xl border border-line bg-surface shadow-2xl p-3',
-                placement === 'top' ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
-              )}
+              style={panelStyle}
+              className="popover-pop z-[60] w-72 rounded-xl border border-line bg-surface shadow-2xl p-3"
             >
               <div className="flex items-center justify-between mb-2">
                 <button
@@ -211,7 +211,8 @@ export const DatePicker = React.forwardRef<HTMLButtonElement, DatePickerProps>(
                   Today
                 </button>
               </div>
-            </div>
+            </div>,
+            document.body
           )}
         </div>
       </div>

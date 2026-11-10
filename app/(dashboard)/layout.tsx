@@ -35,6 +35,7 @@ import {
   Search,
   KeyRound,
   Palette,
+  Lock,
 } from 'lucide-react';
 
 type NavItem = {
@@ -75,6 +76,7 @@ function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () 
             key={item.name}
             href={item.href}
             onClick={onNavigate}
+            title={item.enabled ? undefined : `${item.name} — coming soon`}
             className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
               active
                 ? 'bg-accent/10 text-accent-ink border border-accent/20 shadow-[0_0_15px_rgba(124,58,237,0.05)]'
@@ -83,7 +85,10 @@ function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () 
           >
             <Icon className="w-4.5 h-4.5 shrink-0" />
             <span className="truncate">{item.name}</span>
-            {active && <ChevronRight className="w-4 h-4 ml-auto shrink-0" />}
+            {!item.enabled && (
+              <Lock className="w-3.5 h-3.5 ml-auto shrink-0 text-ink-faint" aria-label="Coming soon" />
+            )}
+            {active && <ChevronRight className={`w-4 h-4 shrink-0 ${item.enabled ? 'ml-auto' : ''}`} />}
           </Link>
         );
       })}

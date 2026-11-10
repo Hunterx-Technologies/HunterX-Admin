@@ -1,3 +1,5 @@
+import type { PaginationInfo } from '@/types/user';
+
 export type TrendPoint = { date: string; value: number };
 
 export type CoreKpis = {
@@ -87,3 +89,22 @@ export type NeedsAttentionItem = {
   timestamp: string;
   href: string;
 };
+
+// ── Paged dashboard lists (backend adminDashboardService.js) ──
+export type DashboardListPath = 'transactions' | 'top-referrers' | 'referral-activity' | 'coupon-activity' | 'needs-attention';
+
+export type DashboardListQuery = { page?: number; sort?: string; partner?: string };
+
+export type PagedList<T> = {
+  items: T[];
+  pagination: PaginationInfo;
+  /** The sort the backend applied (its default when none / an unknown one was asked for). */
+  sort: string;
+  /** coupon-activity only: every partner, for the filter. */
+  partners?: string[];
+  /** Set when the request failed; items is then empty. */
+  error?: string | null;
+};
+
+/** A dashboard widget's data, or why it couldn't be loaded. */
+export type Loaded<T> = { data: T; error: null } | { data: null; error: string };

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { LucideIcon } from 'lucide-react';
-import { ArrowUp, ArrowDown } from 'lucide-react';
+import { ArrowUp, ArrowDown, AlertTriangle } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 
@@ -11,9 +11,11 @@ export interface StatCardProps {
   color?: string;
   delta?: number;
   href?: string;
+  /** The value couldn't be loaded: shows "—" and a short note instead of a number. */
+  failed?: boolean;
 }
 
-export function StatCard({ name, value, icon: Icon, color = 'text-accent-ink', delta, href }: StatCardProps) {
+export function StatCard({ name, value, icon: Icon, color = 'text-accent-ink', delta, href, failed }: StatCardProps) {
   const content = (
     <Card className={cn('flex flex-col justify-between h-full', href && 'hover:translate-y-[-2px] hover:border-accent/30 cursor-pointer')}>
       <div className="flex items-center justify-between mb-4">
@@ -23,8 +25,17 @@ export function StatCard({ name, value, icon: Icon, color = 'text-accent-ink', d
         </div>
       </div>
       <div className="flex items-end justify-between gap-2">
-        <p className="text-2xl font-bold text-ink">{value}</p>
-        {typeof delta === 'number' && (
+        {failed ? (
+          <div>
+            <p className="text-2xl font-bold text-ink-faint">—</p>
+            <p className="flex items-center gap-1 text-xs text-bad-ink mt-0.5">
+              <AlertTriangle className="w-3 h-3" /> Couldn&apos;t load
+            </p>
+          </div>
+        ) : (
+          <p className="text-2xl font-bold text-ink">{value}</p>
+        )}
+        {!failed && typeof delta === 'number' && (
           <span
             className={cn(
               'flex items-center gap-0.5 text-xs font-semibold shrink-0',
