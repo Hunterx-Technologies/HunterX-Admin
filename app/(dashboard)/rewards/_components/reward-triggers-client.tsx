@@ -17,6 +17,7 @@ import {
   createRewardCoupon,
   deleteReward,
   deleteRewardCoupon,
+  renameReward,
   setRewardActive,
   setRewardCouponActive,
   updateRewardCoupon,
@@ -129,6 +130,18 @@ export function RewardTriggersClient({ tab, triggers, loadError }: { tab: Reward
   const [error, setError] = React.useState<string | null>(null);
   const [notice, setNotice] = React.useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = React.useState<RewardTrigger | null>(null);
+  const [renaming, setRenaming] = React.useState<{ id: string; name: string } | null>(null);
+
+  const renameValid = !!renaming && renaming.name.trim().length > 0 && renaming.name.trim().length <= 120;
+  const saveRename = (m: RewardTrigger) => {
+    if (!renaming || !renameValid) return;
+    const name = renaming.name.trim();
+    if (name === triggerLabel(m)) return setRenaming(null);
+    run(`rename-${m.id}`, async () => {
+      await renameReward(tab, m.id, name);
+      setRenaming(null);
+    });
+  };
 
   const run = async (id: string, action: () => Promise<string | void>) => {
     setBusyId(id);
@@ -216,10 +229,48 @@ export function RewardTriggersClient({ tab, triggers, loadError }: { tab: Reward
           <Card key={m.id} className={m.isActive ? 'space-y-4' : 'space-y-4 border-dashed'}>
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <div className="flex items-center gap-2">
-                  <h3 className={m.isActive ? 'text-base font-bold text-ink' : 'text-base font-bold text-ink-muted'}>{triggerLabel(m)}</h3>
-                  <Badge variant={m.isActive ? 'success' : 'muted'}>{m.isActive ? 'Active' : 'Inactive'}</Badge>
-                </div>
+                {renaming?.id === m.id ? (
+                  <form
+                    className="flex flex-wrap items-center gap-2"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      saveRename(m);
+                    }}
+                  >
+                    <Input
+                      autoFocus
+                      aria-label="Special reward name"
+                      maxLength={120}
+                      value={renaming.name}
+                      onChange={(e) => setRenaming({ id: m.id, name: e.target.value })}
+                      onKeyDown={(e) => e.key === 'Escape' && setRenaming(null)}
+                      className="w-72 max-w-full"
+                    />
+                    <Button type="submit" size="sm" disabled={!renameValid || busyId !== null}>
+                      {busyId === `rename-${m.id}` ? 'Saving...' : 'Save'}
+                    </Button>
+                    <Button type="button" size="sm" variant="ghost" disabled={busyId === `rename-${m.id}`} onClick={() => setRenaming(null)}>
+                      Cancel
+                    </Button>
+                  </form>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <h3 className={m.isActive ? 'text-base font-bold text-ink' : 'text-base font-bold text-ink-muted'}>{triggerLabel(m)}</h3>
+                    {m.kind === 'TASK' && (
+                      <button
+                        type="button"
+                        aria-label="Rename reward"
+                        title="Rename"
+                        disabled={busyId !== null}
+                        onClick={() => setRenaming({ id: m.id, name: triggerLabel(m) })}
+                        className="p-1 rounded-md text-ink-faint hover:text-ink hover:bg-surface-inset disabled:opacity-50 cursor-pointer"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    <Badge variant={m.isActive ? 'success' : 'muted'}>{m.isActive ? 'Active' : 'Inactive'}</Badge>
+                  </div>
+                )}
                 <p className="text-sm text-ink-faint mt-0.5">
                   {!m.isActive
                     ? `Switched off — grants no new cards. ${m.cardsGranted.toLocaleString()} already granted stay with their hunters.`

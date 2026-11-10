@@ -28,6 +28,11 @@ export async function setRewardActive(tab: RewardTab, rewardId: string, isActive
   await unwrap(apiClient.patch<ApiResponse<unknown>>(`/admin/rewards/${tab}/${rewardId}`, { is_active: isActive }));
 }
 
+/** Rename a special reward (only special rewards have an editable name). */
+export async function renameReward(tab: RewardTab, rewardId: string, name: string): Promise<void> {
+  await unwrap(apiClient.patch<ApiResponse<unknown>>(`/admin/rewards/${tab}/${rewardId}`, { description: name }));
+}
+
 /** form: built by buildCouponFormData (lib/reward-form.ts), so it can carry the image file. */
 export async function createRewardCoupon(tab: RewardTab, rewardId: string, form: FormData): Promise<void> {
   await unwrap(apiClient.post<ApiResponse<unknown>>(`/admin/rewards/${tab}/${rewardId}/coupons`, form));
