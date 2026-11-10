@@ -11,6 +11,7 @@ import type { RewardTrigger } from '@/types/reward';
 import { recurrenceLabel, taskTypeLabel } from '@/lib/task-labels';
 import { ArrowLeft, Pencil, Users, CheckCircle2, Timer, History, Power, AlertCircle, Trash2, CalendarClock } from 'lucide-react';
 import { deleteTask, setTaskActive } from '@/lib/api/task-actions';
+import { unwrapAction } from '@/lib/api/action-result';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { formatDate } from '@/lib/utils';
 
@@ -35,7 +36,7 @@ export function TaskDetailClient({
     setDeleting(true);
     setToggleError(null);
     try {
-      await deleteTask(task.id);
+      unwrapAction(await deleteTask(task.id));
       router.push('/tasks');
       router.refresh();
     } catch (err) {
@@ -49,7 +50,7 @@ export function TaskDetailClient({
     setToggling(true);
     setToggleError(null);
     try {
-      await setTaskActive(task.id, !isActive);
+      unwrapAction(await setTaskActive(task.id, !isActive));
       router.refresh();
     } catch (err) {
       setToggleError(err instanceof Error ? err.message : 'Failed to update this task.');

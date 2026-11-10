@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { deriveRewardEligibility } from '@/lib/api/reward-eligibility';
 import { createTask, updateTask } from '@/lib/api/task-actions';
+import { unwrapAction } from '@/lib/api/action-result';
 import type { Task, TaskInput, CreatableTaskType, LevelTarget } from '@/types/task';
 import { Lock, AlertCircle, AlertTriangle, Upload, X, IndianRupee, Sparkles, HelpCircle } from 'lucide-react';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
@@ -157,7 +158,17 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
     /^\d+(\.\d{1,2})?$/.test(String(form.price))
   );
 
-  const isEndDateValid = !form.isPaid || Boolean(form.endDate);
+  // Same date rules as the backend (adminTaskService#buildTaskData): a start
+  // date can't be in the past (IST) unless it's an existing task's unchanged
+  // start, and the end can't come before the start. Dates are 'YYYY-MM-DD',
+  // so string comparison is date comparison.
+  const todayIst = new Date(Date.now() + 330 * 60 * 1000).toISOString().slice(0, 10);
+  const startUnchanged = Boolean(initialTask) && form.startDate === ((initialTask ? toDateInput(initialTask.startDate) || null : null));
+  const startDateError =
+    form.startDate && !startUnchanged && form.startDate < todayIst ? 'Start date can’t be in the past.' : null;
+  const endDateError =
+    form.startDate && form.endDate && form.endDate < form.startDate ? 'End date can’t be before the start date.' : null;
+  const isEndDateValid = (!form.isPaid || Boolean(form.endDate)) && !endDateError;
   // Free recurring daily = routine: in every hunter's Daily Routine, on by
   // default, and each hunter can turn it off (decided by the backend).
   const isRoutine = form.taskType === 'DAILY_ADMIN' && form.isRecurring && !form.isPaid;
@@ -174,6 +185,7 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
     form.xpReward <= cap &&
     isPartialXpValid &&
     !!form.startDate &&
+    !startDateError &&
     isEndDateValid &&
     isPriceValid;
 
@@ -235,10 +247,10 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
       }
 
       if (initialTask) {
-        await updateTask(initialTask.id, payload);
+        unwrapAction(await updateTask(initialTask.id, payload));
         router.push(`/tasks/${initialTask.id}`);
       } else {
-        const created = await createTask(payload);
+        const created = unwrapAction(await createTask(payload));
         router.push(`/tasks/${created.id}`);
       }
     } catch (err) {
@@ -449,6 +461,12 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
             required={Boolean(form.isPaid)}
           />
         </div>
+        {(startDateError || endDateError) && (
+          <p className="flex items-start gap-1.5 text-xs text-bad-ink">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-px" />
+            <span>{startDateError || endDateError}</span>
+          </p>
+        )}
 
         {/* Free one-time task automatic duration hint */}
         {!form.isPaid && !form.isRecurring && !form.endDate && (
