@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { deriveRewardEligibility } from '@/lib/api/reward-eligibility';
 import { createTask, updateTask } from '@/lib/api/task-actions';
+import { unwrapAction } from '@/lib/api/action-result';
 import type { Task, TaskInput, CreatableTaskType, LevelTarget } from '@/types/task';
 import { Lock, AlertCircle, AlertTriangle, Upload, X, IndianRupee, Sparkles, HelpCircle } from 'lucide-react';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
@@ -59,8 +60,12 @@ function toDateInput(value: string | null) {
 /** specialRewards: the rewards on Rewards → Special rewards, for the optional special-reward picker. */
 export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: Task; specialRewards?: RewardTrigger[] }) {
   const router = useRouter();
+  // Built-in daily tasks (water, steps, protein, sleep): only title,
+  // description, XP, partial completion and images are editable — the
+  // backend refuses anything else (adminTaskService#updateBuiltInTask).
+  const builtIn = initialTask?.taskType === 'DAILY_FIXED';
   const [form, setForm] = React.useState<TaskInput>(
-    initialTask && (initialTask.taskType === 'DAILY_ADMIN' || initialTask.taskType === 'WEEKLY' || initialTask.taskType === 'MONTHLY')
+    initialTask
       ? {
           title: initialTask.title,
           description: initialTask.description,
@@ -70,7 +75,8 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
           imageUrlFemale: initialTask.imageUrlFemale ?? '',
           imageMaleFile: null,
           imageFemaleFile: null,
-          taskType: initialTask.taskType,
+          // A built-in has the same 10 XP cap as admin daily tasks; its type is never sent.
+          taskType: initialTask.taskType === 'DAILY_FIXED' ? 'DAILY_ADMIN' : initialTask.taskType,
           isRecurring: initialTask.isRecurring,
           recurrenceDays: initialTask.recurrenceDays,
           startDate: toDateInput(initialTask.startDate) || null,
@@ -157,14 +163,32 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
     /^\d+(\.\d{1,2})?$/.test(String(form.price))
   );
 
-  const isEndDateValid = !form.isPaid || Boolean(form.endDate);
+  // Same date rules as the backend (adminTaskService#buildTaskData): a start
+  // date can't be in the past (IST) unless it's an existing task's unchanged
+  // start, and the end can't come before the start. Dates are 'YYYY-MM-DD',
+  // so string comparison is date comparison.
+  const todayIst = new Date(Date.now() + 330 * 60 * 1000).toISOString().slice(0, 10);
+  const startUnchanged = Boolean(initialTask) && form.startDate === ((initialTask ? toDateInput(initialTask.startDate) || null : null));
+  const startDateError =
+    form.startDate && !startUnchanged && form.startDate < todayIst ? 'Start date can’t be in the past.' : null;
+  const endDateError =
+    form.startDate && form.endDate && form.endDate < form.startDate ? 'End date can’t be before the start date.' : null;
+  const isEndDateValid = (!form.isPaid || Boolean(form.endDate)) && !endDateError;
   // Free recurring daily = routine: in every hunter's Daily Routine, on by
   // default, and each hunter can turn it off (decided by the backend).
   const isRoutine = form.taskType === 'DAILY_ADMIN' && form.isRecurring && !form.isPaid;
   const isPartialXpValid = !form.allowsPartial || ((form.xpReward ?? 0) >= 2);
 
-  const isValid =
-    form.title.trim().length > 0 &&
+  const isValid = builtIn
+    ? form.title.trim().length > 0 &&
+      form.description.trim().length > 0 &&
+      hasMaleImage &&
+      hasFemaleImage &&
+      form.xpReward != null &&
+      form.xpReward > 0 &&
+      form.xpReward <= cap &&
+      isPartialXpValid
+    : form.title.trim().length > 0 &&
     form.description.trim().length > 0 &&
     form.tag.trim().length > 0 &&
     hasMaleImage &&
@@ -174,6 +198,7 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
     form.xpReward <= cap &&
     isPartialXpValid &&
     !!form.startDate &&
+    !startDateError &&
     isEndDateValid &&
     isPriceValid;
 
@@ -198,7 +223,19 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
 
       let payload: FormData | TaskInput;
 
-      if (hasFiles) {
+      if (builtIn) {
+        // Only the editable fields — multipart so new images can ride along.
+        const fd = new FormData();
+        fd.append('title', form.title.trim());
+        fd.append('description', form.description.trim());
+        if (form.xpReward != null) fd.append('xp_reward', String(form.xpReward));
+        fd.append('allows_partial', String(Boolean(form.allowsPartial)));
+        if (form.imageMaleFile) fd.append('image_male', form.imageMaleFile);
+        else if (form.imageUrlMale) fd.append('image_url_male', form.imageUrlMale);
+        if (form.imageFemaleFile) fd.append('image_female', form.imageFemaleFile);
+        else if (form.imageUrlFemale) fd.append('image_url_female', form.imageUrlFemale);
+        payload = fd;
+      } else if (hasFiles) {
         const fd = new FormData();
         fd.append('title', form.title.trim());
         if (form.description.trim()) fd.append('description', form.description.trim());
@@ -235,10 +272,10 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
       }
 
       if (initialTask) {
-        await updateTask(initialTask.id, payload);
+        unwrapAction(await updateTask(initialTask.id, payload));
         router.push(`/tasks/${initialTask.id}`);
       } else {
-        const created = await createTask(payload);
+        const created = unwrapAction(await createTask(payload));
         router.push(`/tasks/${created.id}`);
       }
     } catch (err) {
@@ -251,12 +288,21 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
 
   return (
     <form onSubmit={handleSubmit} noValidate className="max-w-4xl mx-auto space-y-6">
+      {builtIn && (
+        <div className="flex items-start gap-2.5 p-3.5 rounded-lg border border-line bg-surface-inset/30 text-ink-muted text-sm">
+          <Lock className="w-4 h-4 shrink-0 mt-0.5 text-accent-ink" />
+          <span>
+            Built-in daily task. You can change its title, description, artwork and XP. Its type, tag, target and schedule are fixed because the app&apos;s tracking depends on them.
+          </span>
+        </div>
+      )}
+
       {/* 1. Basic Info */}
       <Card className="space-y-5">
         <SectionHeader title="Basic Info" description="What hunters will see for this task." />
         <Input label="Title" placeholder="e.g. 30-Day Strength Program" value={form.title} onChange={(e) => update('title', e.target.value)} required />
         <Textarea label="Description" rows={3} placeholder="Describe what hunters need to do..." value={form.description} onChange={(e) => update('description', e.target.value)} required />
-        <Input label="Tag" placeholder="e.g. Fitness, Strength, Cardio" value={form.tag} onChange={(e) => update('tag', e.target.value)} required />
+        <Input label="Tag" placeholder="e.g. Fitness, Strength, Cardio" value={form.tag} onChange={(e) => update('tag', e.target.value)} required disabled={builtIn} />
       </Card>
 
       {/* 2. Artwork & Images */}
@@ -367,6 +413,7 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
       </Card>
 
       {/* 3. Task Type & Schedule */}
+      {!builtIn && (
       <Card className="space-y-5">
         <SectionHeader title="Task Type & Schedule" description="How often this task recurs and how hunters can access it." />
         <div>
@@ -449,6 +496,12 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
             required={Boolean(form.isPaid)}
           />
         </div>
+        {(startDateError || endDateError) && (
+          <p className="flex items-start gap-1.5 text-xs text-bad-ink">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-px" />
+            <span>{startDateError || endDateError}</span>
+          </p>
+        )}
 
         {/* Free one-time task automatic duration hint */}
         {!form.isPaid && !form.isRecurring && !form.endDate && (
@@ -460,10 +513,12 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
           </div>
         )}
       </Card>
+      )}
 
       {/* 4. Completion Criteria & XP */}
       <Card className="space-y-5">
         <SectionHeader title="Completion Criteria" description="What counts as done, and the XP it earns." />
+        {!builtIn && (
         <div className="grid gap-4 sm:grid-cols-2">
           <Input
             label="Target Value"
@@ -474,8 +529,10 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
           />
           <Input label="Unit" placeholder="e.g. km, minutes, steps" value={form.targetUnit} onChange={(e) => update('targetUnit', e.target.value)} />
         </div>
+        )}
         <Input
           label={`XP Reward (max ${cap} for ${form.taskType === 'WEEKLY' ? 'Weekly' : form.taskType === 'MONTHLY' ? 'Monthly' : 'Daily'} tasks)`}
+          min={1}
           type="number"
           placeholder={`e.g. ${cap}`}
           max={cap}
@@ -510,6 +567,7 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
       </Card>
 
       {/* 5. Proof (optional) */}
+      {!builtIn && (
       <Card className="space-y-4">
         <SectionHeader
           title="Proof"
@@ -535,8 +593,10 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
           </Select>
         )}
       </Card>
+      )}
 
       {/* 6. Special reward (optional) */}
+      {!builtIn && (
       <Card className="space-y-4">
         <SectionHeader
           title="Special Reward"
@@ -572,6 +632,7 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
           </p>
         )}
       </Card>
+      )}
 
       {/* 7. Reward Eligibility preview */}
       <Card className="space-y-3">
@@ -615,9 +676,10 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
               <dt className="text-ink-faint">Title</dt>
               <dd className="text-ink font-medium truncate">{form.title.trim()}</dd>
               <dt className="text-ink-faint">Type</dt>
-              <dd className="text-ink">{taskTypeLabel(form.taskType)} · {recurrenceLabel(form.isRecurring)}{isRoutine ? ' · Routine' : ''}</dd>
+              <dd className="text-ink">{builtIn ? 'Built-in daily' : `${taskTypeLabel(form.taskType)} · ${recurrenceLabel(form.isRecurring)}${isRoutine ? ' · Routine' : ''}`}</dd>
               <dt className="text-ink-faint">XP</dt>
               <dd className="text-ink">{form.xpReward ?? 0} XP{form.allowsPartial ? ' (partial allowed)' : ''}</dd>
+              {!builtIn && (<>
               <dt className="text-ink-faint">Dates</dt>
               <dd className="text-ink">{form.startDate || '—'}{form.endDate ? ` → ${form.endDate}` : form.isRecurring ? ' → no end' : ''}</dd>
               <dt className="text-ink-faint">Price</dt>
@@ -630,6 +692,7 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
                   ? specialRewards.find((r) => r.id === form.specialRewardId)?.description ?? 'Selected'
                   : 'None — XP only'}
               </dd>
+              </>)}
             </dl>
           </div>
         }
