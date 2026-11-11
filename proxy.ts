@@ -92,6 +92,15 @@ export default async function proxy(request: NextRequest) {
       } catch {}
     }
 
+    // A Server Action (a form save, a button) can't follow a redirect to the
+    // login page — the browser shows "An unexpected response was received
+    // from the server" and the admin loses track of why. Let it through:
+    // the API rejects it without a valid token, and the action returns
+    // "session expired" for the form to show (lib/api/action-result.ts).
+    if (request.method === 'POST' && request.headers.has('next-action')) {
+      return NextResponse.next();
+    }
+
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     if (pathname !== '/' && pathname !== '/login') {

@@ -12,6 +12,7 @@ import { Tabs } from '@/components/ui/tabs';
 import { EmptyState } from '@/components/ui/empty-state';
 import type { PendingReviewItem, ProofDecision, ProofReviewPage, ProofReviewStatus } from '@/types/task';
 import { decideReview } from '@/lib/api/task-actions';
+import { unwrapAction } from '@/lib/api/action-result';
 import { getProofReviews } from '@/lib/api/tasks';
 import { AlertCircle, ArrowLeft, Check, ClipboardList, RotateCcw, X } from 'lucide-react';
 import { formatDate, formatDateTime } from '@/lib/utils';
@@ -50,7 +51,7 @@ export function ReviewQueueClient({ status, initialPage }: { status: ProofReview
     setBusyId(item.id);
     setError(null);
     try {
-      await decideReview(item.id, decision, reason);
+      unwrapAction(await decideReview(item.id, decision, reason));
       // Decided items leave this tab; the counts refresh with the page.
       setItems((list) => list.filter((i) => i.id !== item.id));
       setNoteDialog(null);

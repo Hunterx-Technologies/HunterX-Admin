@@ -189,6 +189,8 @@ async function refreshAccessToken(): Promise<string | null> {
 apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError<ApiResponse<unknown>>) => {
+    // Already ours (e.g. the request interceptor's "no token" 401) — keep its status.
+    if (error instanceof ApiError) throw error;
     const originalRequest = error.config as (InternalAxiosRequestConfig & { _retried?: boolean }) | undefined;
     const requestUrl = originalRequest?.url || '';
 
