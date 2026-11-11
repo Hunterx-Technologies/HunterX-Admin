@@ -88,17 +88,14 @@ export function TaskDetailClient({
             <Power className="w-3.5 h-3.5 mr-2" />
             {toggling ? 'Saving...' : isActive ? 'Deactivate' : 'Activate'}
           </Button>
-          {task.taskType === 'DAILY_FIXED' ? (
-            <Button variant="outline" size="sm" disabled title="Built-in daily tasks (water, steps, protein…) can only be switched on or off">
+          <Link
+            href={`/tasks/${task.id}/edit`}
+            title={task.taskType === 'DAILY_FIXED' ? 'Built-in task: title, description, artwork and XP can be edited' : undefined}
+          >
+            <Button variant="outline" size="sm">
               <Pencil className="w-3.5 h-3.5 mr-2" /> Edit Task
             </Button>
-          ) : (
-            <Link href={`/tasks/${task.id}/edit`}>
-              <Button variant="outline" size="sm">
-                <Pencil className="w-3.5 h-3.5 mr-2" /> Edit Task
-              </Button>
-            </Link>
-          )}
+          </Link>
         </div>
       </div>
 
