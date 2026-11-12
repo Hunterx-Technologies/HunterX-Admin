@@ -27,6 +27,7 @@ import {
   getNeedsAttention,
 } from '@/lib/api/dashboard';
 import { cn, formatDate } from '@/lib/utils';
+import type { RangeParams } from '@/lib/dashboard-range';
 
 // ── Paging + sorting (done by the backend) ────────────────
 
@@ -131,8 +132,9 @@ const TRANSACTION_SORTS: SortLabels = {
   user: 'User: A–Z',
 };
 
-export function TransactionsTable({ initial }: { initial: PagedList<Transaction> }) {
-  const { data, query, pending, update, error, retry } = usePagedList(initial, getRecentTransactions);
+/** `range`: the page's date filter; the page remounts this (key) when it changes. */
+export function TransactionsTable({ initial, range }: { initial: PagedList<Transaction>; range: RangeParams }) {
+  const { data, query, pending, update, error, retry } = usePagedList(initial, (q) => getRecentTransactions(q, range));
   if (data.error) return <NeverLoaded message={data.error} onRetry={retry} pending={pending} />;
   const transactions = data.items;
   const pageItems = transactions;
@@ -191,8 +193,9 @@ const REFERRER_SORTS: SortLabels = {
   name: 'Hunter: A–Z',
 };
 
-export function TopReferrersTable({ initial }: { initial: PagedList<TopReferrer> }) {
-  const { data, query, pending, update, error, retry } = usePagedList(initial, getTopReferrers);
+/** `range`: the page's date filter; the page remounts this (key) when it changes. */
+export function TopReferrersTable({ initial, range }: { initial: PagedList<TopReferrer>; range: RangeParams }) {
+  const { data, query, pending, update, error, retry } = usePagedList(initial, (q) => getTopReferrers(q, range));
   if (data.error) return <NeverLoaded message={data.error} onRetry={retry} pending={pending} />;
   const referrers = data.items;
   const pageItems = referrers;
@@ -255,8 +258,9 @@ const REFERRAL_ACTIVITY_SORTS: SortLabels = {
   referrer: 'Referrer: A–Z',
 };
 
-export function ReferralActivityTable({ initial }: { initial: PagedList<ReferralActivity> }) {
-  const { data, query, pending, update, error, retry } = usePagedList(initial, getRecentReferralActivity);
+/** `range`: the page's date filter; the page remounts this (key) when it changes. */
+export function ReferralActivityTable({ initial, range }: { initial: PagedList<ReferralActivity>; range: RangeParams }) {
+  const { data, query, pending, update, error, retry } = usePagedList(initial, (q) => getRecentReferralActivity(q, range));
   if (data.error) return <NeverLoaded message={data.error} onRetry={retry} pending={pending} />;
   const activity = data.items;
   const pageItems = activity;
@@ -318,8 +322,9 @@ const COUPON_SORTS: SortLabels = {
   user: 'User: A–Z',
 };
 
-export function CouponActivityTable({ initial }: { initial: PagedList<CouponActivityEntry> }) {
-  const { data, query, pending, update, error, retry } = usePagedList(initial, getCouponActivityLog);
+/** `range`: the page's date filter; the page remounts this (key) when it changes. */
+export function CouponActivityTable({ initial, range }: { initial: PagedList<CouponActivityEntry>; range: RangeParams }) {
+  const { data, query, pending, update, error, retry } = usePagedList(initial, (q) => getCouponActivityLog(q, range));
   if (data.error) return <NeverLoaded message={data.error} onRetry={retry} pending={pending} />;
   const partners = data.partners ?? [];
   const pageItems = data.items;
