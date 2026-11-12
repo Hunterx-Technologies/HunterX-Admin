@@ -2,27 +2,33 @@ import type { PaginationInfo } from '@/types/user';
 
 export type TrendPoint = { date: string; value: number };
 
+/**
+ * For the selected date range: counts inside it, "as of" values at its end,
+ * and each delta = % change vs the same-length period just before.
+ */
 export type CoreKpis = {
   totalUsers: number;
-  activeToday: number;
-  newSignupsToday: number;
+  activeUsers: number;
+  newSignups: number;
   activeSubscriptions: number;
-  tasksCompletedToday: number;
+  tasksCompleted: number;
+  /** Open right now (tickets have no status history). */
   openFeedbackTickets: number;
   totalUsersDelta: number;
-  activeTodayDelta: number;
-  newSignupsTodayDelta: number;
+  activeUsersDelta: number;
+  newSignupsDelta: number;
   activeSubscriptionsDelta: number;
-  tasksCompletedTodayDelta: number;
+  tasksCompletedDelta: number;
   openFeedbackTicketsDelta: number;
 };
 
 export type SubscriptionOverview = {
   mrr: number;
   activeSubscribers: number;
-  newSubsToday: number;
-  newSubsWeek: number;
-  churnedThisWeek: number;
+  /** Paid subscriptions started in the range. */
+  newSubs: number;
+  /** Subscriptions cancelled in the range. */
+  churned: number;
   trialToPaidPct: number;
   statusBreakdown: { status: string; count: number }[];
 };

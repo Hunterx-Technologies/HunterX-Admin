@@ -55,13 +55,45 @@ const tooltipCursorLine = {
   strokeDasharray: '4 4',
 };
 
-function formatShortDate(d: string) {
-  const date = new Date(d);
-  if (isNaN(date.getTime())) return d;
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Date labels for a trend over the dashboard's date range. Points are daily
+ * up to ~3 months, then one per week or month (the backend buckets them);
+ * labels gain the year once the range spans about a year.
+ */
+function trendDates(data: TrendPoint[]) {
+  const t = (p?: TrendPoint) => (p ? Date.parse(`${p.date}T00:00:00Z`) : NaN);
+  const spanDays = data.length > 1 ? (t(data.at(-1)) - t(data[0])) / DAY_MS : 0;
+  const stepDays = data.length > 1 ? (t(data[1]) - t(data[0])) / DAY_MS : 1;
+  const fmt = (opts: Intl.DateTimeFormatOptions) => (d: string) => {
+    const ms = Date.parse(`${d}T00:00:00Z`);
+    return isNaN(ms) ? d : new Date(ms).toLocaleDateString('en-US', { ...opts, timeZone: 'UTC' });
+  };
+  const longRange = spanDays > 330;
+  const monthly = stepDays >= 28;
+  const weekly = stepDays > 1 && !monthly;
+  return {
+    /** Points are weekly / monthly groups rather than single days. */
+    grouped: stepDays > 1,
+    tick: fmt(
+      monthly
+        ? { month: 'short', year: '2-digit' }
+        : longRange
+          ? { month: 'short', day: 'numeric', year: '2-digit' }
+          : { month: 'short', day: 'numeric' }
+    ),
+    label: (d: string) =>
+      monthly
+        ? fmt({ month: 'long', year: 'numeric' })(d)
+        : weekly
+          ? `Week of ${fmt({ month: 'short', day: 'numeric', year: 'numeric' })(d)}`
+          : fmt({ month: 'short', day: 'numeric', ...(longRange ? { year: 'numeric' as const } : {}) })(d),
+  };
 }
 
 export function MrrTrendChart({ data }: { data: TrendPoint[] }) {
+  const dates = trendDates(data);
   return (
     <ResponsiveContainer width="100%" height={260}>
       <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
@@ -74,9 +106,10 @@ export function MrrTrendChart({ data }: { data: TrendPoint[] }) {
         <CartesianGrid stroke={GRID} strokeDasharray="0" vertical={false} />
         <XAxis
           dataKey="date"
-          tickFormatter={formatShortDate}
+          tickFormatter={dates.tick}
           tick={AXIS_TEXT}
-          interval={13}
+          interval="preserveStartEnd"
+          minTickGap={28}
           axisLine={{ stroke: GRID }}
           tickLine={false}
         />
@@ -92,7 +125,7 @@ export function MrrTrendChart({ data }: { data: TrendPoint[] }) {
           labelStyle={tooltipLabelStyle}
           itemStyle={tooltipItemStyle}
           cursor={tooltipCursorLine}
-          labelFormatter={(v) => formatShortDate(String(v))}
+          labelFormatter={(v) => dates.label(String(v))}
           formatter={(value) => [`$${Number(value).toLocaleString()}`, 'MRR (Monthly Recurring Revenue)']}
         />
         <Area
@@ -110,15 +143,17 @@ export function MrrTrendChart({ data }: { data: TrendPoint[] }) {
 }
 
 export function DauTrendChart({ data }: { data: TrendPoint[] }) {
+  const dates = trendDates(data);
   return (
     <ResponsiveContainer width="100%" height={220}>
       <LineChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
         <CartesianGrid stroke={GRID} strokeDasharray="0" vertical={false} />
         <XAxis
           dataKey="date"
-          tickFormatter={formatShortDate}
+          tickFormatter={dates.tick}
           tick={AXIS_TEXT}
-          interval={5}
+          interval="preserveStartEnd"
+          minTickGap={28}
           axisLine={{ stroke: GRID }}
           tickLine={false}
         />
@@ -128,8 +163,8 @@ export function DauTrendChart({ data }: { data: TrendPoint[] }) {
           labelStyle={tooltipLabelStyle}
           itemStyle={tooltipItemStyle}
           cursor={tooltipCursorLine}
-          labelFormatter={(v) => formatShortDate(String(v))}
-          formatter={(value) => [`${Number(value)} users`, 'DAU']}
+          labelFormatter={(v) => dates.label(String(v))}
+          formatter={(value) => [`${Number(value)} users`, dates.grouped ? 'Avg. daily active' : 'DAU']}
         />
         <Line
           type="monotone"

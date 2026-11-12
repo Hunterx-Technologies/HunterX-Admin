@@ -132,6 +132,9 @@ export type ApiUser = {
   banned_at?: string | null;
   signup_date: string;
   auth_providers: string[];
+  /** Set while the account waits to be deleted (30-day grace). */
+  delete_at?: string | null;
+  deletion_days_left?: number | null;
 };
 
 export type PaginationInfo = {
@@ -151,6 +154,8 @@ export type UsersQueryParams = {
   start_date?: string;
   end_date?: string;
   sort_by?: string;
+  /** 'PENDING': only accounts waiting to be deleted. */
+  deletion?: string;
   page?: number;
   limit?: number;
 };

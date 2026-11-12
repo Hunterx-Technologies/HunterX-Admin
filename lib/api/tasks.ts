@@ -109,14 +109,19 @@ interface RawProofReview {
   reviewed_at: string | null;
   review_note: string | null;
   xp_earned: number;
+  user_delete_at?: string | null;
+  user_deletion_days_left?: number | null;
 }
 
 const EMPTY_COUNTS: Record<ProofReviewStatus, number> = { IN_REVIEW: 0, RESUBMIT: 0, REJECTED: 0, COMPLETED: 0 };
 
 /** One page of proof submissions with that status (IN_REVIEW = the queue, oldest first). */
-export async function getProofReviews(status: ProofReviewStatus = 'IN_REVIEW', cursor?: string): Promise<ProofReviewPage & { error: string | null }> {
+/** `pendingDeletionOnly`: just hunters whose account waits to be deleted. */
+export async function getProofReviews(status: ProofReviewStatus = 'IN_REVIEW', cursor?: string, pendingDeletionOnly = false): Promise<ProofReviewPage & { error: string | null }> {
   try {
-    const response = await apiClient.get('/admin/tasks/review-queue', { params: { status, ...(cursor ? { cursor } : {}) } });
+    const response = await apiClient.get('/admin/tasks/review-queue', {
+      params: { status, ...(cursor ? { cursor } : {}), ...(pendingDeletionOnly ? { deletion: 'PENDING' } : {}) },
+    });
     const data = response.data?.data as { items: RawProofReview[]; next_cursor: string | null; counts: Record<string, number> };
     return {
       error: null,
@@ -144,6 +149,8 @@ export async function getProofReviews(status: ProofReviewStatus = 'IN_REVIEW', c
         reviewedAt: r.reviewed_at,
         reviewNote: r.review_note,
         xpEarned: r.xp_earned,
+        userDeleteAt: r.user_delete_at ?? null,
+        userDeletionDaysLeft: r.user_deletion_days_left ?? null,
       })),
     };
   } catch (error: unknown) {

@@ -33,6 +33,7 @@ import {
   ShieldAlert,
   Calendar,
   ArrowUpDown,
+  Trash2,
 } from 'lucide-react';
 
 const LEVEL_BUCKETS = [
@@ -49,6 +50,11 @@ const STATUS_OPTIONS = [
   { value: 'all', label: 'All Statuses' },
   { value: 'ACTIVE', label: 'Active' },
   { value: 'BANNED', label: 'Banned' },
+];
+
+const DELETION_OPTIONS = [
+  { value: 'all', label: 'All Accounts' },
+  { value: 'PENDING', label: 'Pending Deletion' },
 ];
 
 const DATE_PRESETS = [
@@ -115,6 +121,7 @@ export function UsersClient() {
   const currentRank = searchParams.get('rank') || 'all';
   const currentLevel = searchParams.get('level') || 'all';
   const currentStatus = searchParams.get('status') || 'all';
+  const currentDeletion = searchParams.get('deletion') || 'all';
   const currentDatePreset = searchParams.get('date_preset') || (searchParams.get('start_date') ? 'custom' : 'all');
   const currentStartDate = searchParams.get('start_date') || '';
   const currentEndDate = searchParams.get('end_date') || '';
@@ -198,6 +205,7 @@ export function UsersClient() {
           rank: currentRank,
           level: currentLevel,
           status: currentStatus,
+          deletion: currentDeletion,
           date_preset: isCustomDate ? undefined : currentDatePreset,
           start_date: isCustomDate ? currentStartDate : undefined,
           end_date: isCustomDate ? currentEndDate : undefined,
@@ -243,6 +251,7 @@ export function UsersClient() {
     currentRank,
     currentLevel,
     currentStatus,
+    currentDeletion,
     currentDatePreset,
     currentStartDate,
     currentEndDate,
@@ -274,6 +283,7 @@ export function UsersClient() {
     currentRank !== 'all' ||
     currentLevel !== 'all' ||
     currentStatus !== 'all' ||
+    currentDeletion !== 'all' ||
     currentDatePreset !== 'all' ||
     Boolean(currentStartDate) ||
     Boolean(currentEndDate) ||
@@ -367,6 +377,17 @@ export function UsersClient() {
               {STATUS_OPTIONS.map((s) => (
                 <option key={s.value} value={s.value}>
                   {s.label}
+                </option>
+              ))}
+            </Select>
+          </div>
+
+          {/* Pending-deletion Dropdown */}
+          <div className="w-40">
+            <Select value={currentDeletion} onChange={(e) => updateFilters({ deletion: e.target.value })}>
+              {DELETION_OPTIONS.map((d) => (
+                <option key={d.value} value={d.value}>
+                  {d.label}
                 </option>
               ))}
             </Select>
@@ -518,9 +539,22 @@ export function UsersClient() {
                     </span>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={user.status === 'ACTIVE' ? 'success' : 'danger'}>
-                      {user.status}
-                    </Badge>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Badge variant={user.status === 'ACTIVE' ? 'success' : 'danger'}>
+                        {user.status}
+                      </Badge>
+                      {user.delete_at && (
+                        <Badge
+                          variant="danger"
+                          title={`Scheduled for deletion on ${formatDate(user.delete_at)}. Quest approvals and rewards are paused until they keep the account.`}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          {user.deletion_days_left === null || user.deletion_days_left === undefined
+                            ? 'Pending deletion'
+                            : user.deletion_days_left <= 0 ? 'Deletion today' : `Deletion · ${user.deletion_days_left}d`}
+                        </Badge>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-ink-muted">{formatDate(user.signup_date)}</TableCell>
                   <TableCell>

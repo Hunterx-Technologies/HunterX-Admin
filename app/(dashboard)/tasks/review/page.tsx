@@ -4,9 +4,18 @@ import { ReviewQueueClient } from './_components/review-queue-client';
 
 const STATUSES: ProofReviewStatus[] = ['IN_REVIEW', 'RESUBMIT', 'REJECTED', 'COMPLETED'];
 
-export default async function TaskReviewPage({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
-  const requested = (await searchParams).status?.toUpperCase();
+export default async function TaskReviewPage({ searchParams }: { searchParams: Promise<{ status?: string; deletion?: string }> }) {
+  const params = await searchParams;
+  const requested = params.status?.toUpperCase();
   const status = STATUSES.find((s) => s === requested) ?? 'IN_REVIEW';
-  const page = await getProofReviews(status);
-  return <ReviewQueueClient key={status} status={status} initialPage={page} />;
+  const pendingDeletionOnly = params.deletion?.toUpperCase() === 'PENDING';
+  const page = await getProofReviews(status, undefined, pendingDeletionOnly);
+  return (
+    <ReviewQueueClient
+      key={`${status}:${pendingDeletionOnly}`}
+      status={status}
+      pendingDeletionOnly={pendingDeletionOnly}
+      initialPage={page}
+    />
+  );
 }

@@ -77,6 +77,7 @@ export async function getUsersListApi(params: UsersQueryParams = {}): Promise<Us
     if (params.rank && params.rank !== 'all') queryParams.rank = params.rank;
     if (params.level && params.level !== 'all') queryParams.level = params.level;
     if (params.status && params.status !== 'all') queryParams.status = params.status;
+    if (params.deletion && params.deletion !== 'all') queryParams.deletion = params.deletion;
 
     if (params.start_date && params.end_date) {
       queryParams.start_date = params.start_date;

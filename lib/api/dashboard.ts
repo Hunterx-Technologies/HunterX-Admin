@@ -3,6 +3,8 @@
 // Server Functions backing the Dashboard page. Every widget loads on its own:
 // a failed request comes back as { error } so that widget shows a
 // "couldn't load" state with Retry, instead of zeros that look like real data.
+// Each takes the page's date range (lib/dashboard-range.ts); the backend
+// defaults to the last 7 days when none is sent.
 
 import type {
   CoreKpis,
@@ -22,14 +24,15 @@ import type {
   Loaded,
 } from '@/types/dashboard';
 import { apiClient } from '@/lib/api/client';
+import type { RangeParams } from '@/lib/dashboard-range';
 
 const LOAD_ERROR = "Couldn't load this data. Check your connection and try again.";
 
 const isObject = (d: unknown) => typeof d === 'object' && d !== null && !Array.isArray(d);
 
-async function fetchWidget<T>(path: string, valid: (d: unknown) => boolean): Promise<Loaded<T>> {
+async function fetchWidget<T>(path: string, valid: (d: unknown) => boolean, range?: RangeParams): Promise<Loaded<T>> {
   try {
-    const response = await apiClient.get<any>(`/admin/dashboard/${path}`);
+    const response = await apiClient.get<any>(`/admin/dashboard/${path}`, { params: range });
     const data = response.data?.data;
     if (response.data?.success && valid(data)) return { data: data as T, error: null };
     console.error(`[dashboard/${path}] unexpected response`);
@@ -39,49 +42,55 @@ async function fetchWidget<T>(path: string, valid: (d: unknown) => boolean): Pro
   return { data: null, error: LOAD_ERROR };
 }
 
-export async function getCoreKpis(): Promise<Loaded<CoreKpis>> {
-  return fetchWidget('kpis', isObject);
+export async function getCoreKpis(range?: RangeParams): Promise<Loaded<CoreKpis>> {
+  return fetchWidget('kpis', isObject, range);
 }
 
-export async function getSubscriptionOverview(): Promise<Loaded<SubscriptionOverview>> {
-  return fetchWidget('subscriptions', isObject);
+export async function getSubscriptionOverview(range?: RangeParams): Promise<Loaded<SubscriptionOverview>> {
+  return fetchWidget('subscriptions', isObject, range);
 }
 
-export async function getMrrTrend(): Promise<Loaded<TrendPoint[]>> {
-  return fetchWidget('mrr-trend', Array.isArray);
+export async function getMrrTrend(range?: RangeParams): Promise<Loaded<TrendPoint[]>> {
+  return fetchWidget('mrr-trend', Array.isArray, range);
 }
 
-export async function getDauTrend(): Promise<Loaded<TrendPoint[]>> {
-  return fetchWidget('dau-trend', Array.isArray);
+export async function getDauTrend(range?: RangeParams): Promise<Loaded<TrendPoint[]>> {
+  return fetchWidget('dau-trend', Array.isArray, range);
 }
 
-export async function getStreakDropoff(): Promise<Loaded<{ day: number; usersRemaining: number }[]>> {
-  return fetchWidget('streak-dropoff', Array.isArray);
+export async function getStreakDropoff(range?: RangeParams): Promise<Loaded<{ day: number; usersRemaining: number }[]>> {
+  return fetchWidget('streak-dropoff', Array.isArray, range);
 }
 
+/** Current levels only — the backend has no level history, so no date range. */
 export async function getRankDistribution(): Promise<Loaded<RankDistributionPoint[]>> {
   return fetchWidget('rank-distribution', Array.isArray);
 }
 
-export async function getReferralOverview(): Promise<Loaded<ReferralOverview>> {
-  return fetchWidget('referrals', isObject);
+export async function getReferralOverview(range?: RangeParams): Promise<Loaded<ReferralOverview>> {
+  return fetchWidget('referrals', isObject, range);
 }
 
-export async function getCouponOverview(): Promise<Loaded<CouponOverview>> {
-  return fetchWidget('coupons', isObject);
+export async function getCouponOverview(range?: RangeParams): Promise<Loaded<CouponOverview>> {
+  return fetchWidget('coupons', isObject, range);
 }
 
 // ── Paged lists ───────────────────────────────────────────
 // The backend pages and sorts these (?page=&limit=&sort=, coupon-activity
-// also ?partner=). Called on first render and again by the tables when the
+// also ?partner=), within the date range (except needs-attention, which is
+// what's open now). Called on first render and again by the tables when the
 // page, sort or partner changes.
 const LIST_LIMIT = 5;
 
-async function getDashboardList<T>(path: DashboardListPath, query: DashboardListQuery = {}): Promise<PagedList<T>> {
+async function getDashboardList<T>(
+  path: DashboardListPath,
+  query: DashboardListQuery = {},
+  range?: RangeParams
+): Promise<PagedList<T>> {
   const page = Math.max(1, query.page ?? 1);
   try {
     const response = await apiClient.get<any>(`/admin/dashboard/${path}`, {
-      params: { page, limit: LIST_LIMIT, sort: query.sort, partner: query.partner },
+      params: { ...range, page, limit: LIST_LIMIT, sort: query.sort, partner: query.partner },
     });
     const data = response.data?.data;
     if (response.data?.success && data && Array.isArray(data.items) && data.pagination) {
@@ -105,20 +114,20 @@ async function getDashboardList<T>(path: DashboardListPath, query: DashboardList
   };
 }
 
-export async function getRecentTransactions(query?: DashboardListQuery): Promise<PagedList<Transaction>> {
-  return getDashboardList('transactions', query);
+export async function getRecentTransactions(query?: DashboardListQuery, range?: RangeParams): Promise<PagedList<Transaction>> {
+  return getDashboardList('transactions', query, range);
 }
 
-export async function getTopReferrers(query?: DashboardListQuery): Promise<PagedList<TopReferrer>> {
-  return getDashboardList('top-referrers', query);
+export async function getTopReferrers(query?: DashboardListQuery, range?: RangeParams): Promise<PagedList<TopReferrer>> {
+  return getDashboardList('top-referrers', query, range);
 }
 
-export async function getRecentReferralActivity(query?: DashboardListQuery): Promise<PagedList<ReferralActivity>> {
-  return getDashboardList('referral-activity', query);
+export async function getRecentReferralActivity(query?: DashboardListQuery, range?: RangeParams): Promise<PagedList<ReferralActivity>> {
+  return getDashboardList('referral-activity', query, range);
 }
 
-export async function getCouponActivityLog(query?: DashboardListQuery): Promise<PagedList<CouponActivityEntry>> {
-  return getDashboardList('coupon-activity', query);
+export async function getCouponActivityLog(query?: DashboardListQuery, range?: RangeParams): Promise<PagedList<CouponActivityEntry>> {
+  return getDashboardList('coupon-activity', query, range);
 }
 
 export async function getNeedsAttention(query?: DashboardListQuery): Promise<PagedList<NeedsAttentionItem>> {
