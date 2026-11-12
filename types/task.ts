@@ -126,6 +126,9 @@ export type PendingReviewItem = {
   reviewedAt: string | null;
   reviewNote: string | null;
   xpEarned: number;
+  /** Set while the hunter's account waits to be deleted — approving is refused then. */
+  userDeleteAt: string | null;
+  userDeletionDaysLeft: number | null;
 };
 
 export type ProofReviewPage = {

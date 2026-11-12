@@ -14,7 +14,7 @@ import type { PendingReviewItem, ProofDecision, ProofReviewPage, ProofReviewStat
 import { decideReview } from '@/lib/api/task-actions';
 import { unwrapAction } from '@/lib/api/action-result';
 import { getProofReviews } from '@/lib/api/tasks';
-import { AlertCircle, ArrowLeft, Check, ClipboardList, RotateCcw, X } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Check, ClipboardList, RotateCcw, Trash2, X } from 'lucide-react';
 import { formatDate, formatDateTime } from '@/lib/utils';
 import { taskTypeLabel } from '@/lib/task-labels';
 
@@ -29,12 +29,24 @@ const MAX_NOTE = 300;
 
 type NoteDialog = { item: PendingReviewItem; decision: Exclude<ProofDecision, 'APPROVE'> } | null;
 
+const PENDING_DELETION_TIP =
+  'This hunter’s account is scheduled for deletion, so no XP can be awarded. The proof stays here until they keep their account.';
+
+function deletionLabel(daysLeft: number | null) {
+  if (daysLeft === null) return 'Pending deletion';
+  return daysLeft <= 0 ? 'Deletion today' : `Pending deletion · ${daysLeft}d left`;
+}
+
 /**
  * Proof submissions for tasks that require photo proof. To review: approve
  * (pays the XP and rewards), ask for new photos, or reject for good — the
  * last two need a reason, which the hunter sees. The other tabs are history.
  */
-export function ReviewQueueClient({ status, initialPage }: { status: ProofReviewStatus; initialPage: ProofReviewPage & { error: string | null } }) {
+export function ReviewQueueClient({ status, pendingDeletionOnly = false, initialPage }: {
+  status: ProofReviewStatus;
+  pendingDeletionOnly?: boolean;
+  initialPage: ProofReviewPage & { error: string | null };
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const [items, setItems] = React.useState(initialPage.items);
@@ -67,7 +79,7 @@ export function ReviewQueueClient({ status, initialPage }: { status: ProofReview
   const loadMore = async () => {
     if (!nextCursor) return;
     setLoadingMore(true);
-    const page = await getProofReviews(status, nextCursor);
+    const page = await getProofReviews(status, nextCursor, pendingDeletionOnly);
     if (page.error) setError(page.error);
     setItems((list) => [...list, ...page.items]);
     setNextCursor(page.nextCursor);
@@ -89,8 +101,18 @@ export function ReviewQueueClient({ status, initialPage }: { status: ProofReview
       <Tabs
         items={STATUSES.map((s) => ({ value: s, label: `${TAB_LABEL[s]} (${counts[s]})` }))}
         value={status}
-        onChange={(next) => router.push(`${pathname}?status=${next}`)}
+        onChange={(next) => router.push(`${pathname}?status=${next}${pendingDeletionOnly ? '&deletion=PENDING' : ''}`)}
       />
+
+      <label className="inline-flex items-center gap-2 text-sm text-ink-muted cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={pendingDeletionOnly}
+          onChange={(e) => router.push(`${pathname}?status=${status}${e.target.checked ? '&deletion=PENDING' : ''}`)}
+          className="accent-current"
+        />
+        Only hunters pending deletion
+      </label>
 
       {error && (
         <div className="flex items-start gap-2.5 p-3.5 rounded-lg border border-bad-ink/20 bg-bad-ink/10 text-bad-ink text-sm">
@@ -114,6 +136,11 @@ export function ReviewQueueClient({ status, initialPage }: { status: ProofReview
                   </Link>
                   <Badge variant="muted">{taskTypeLabel(item.taskType)}</Badge>
                   <Badge variant="default">{item.xpReward} XP</Badge>
+                  {item.userDeleteAt && (
+                    <Badge variant="danger" title={PENDING_DELETION_TIP}>
+                      <Trash2 className="w-3 h-3" /> {deletionLabel(item.userDeletionDaysLeft)}
+                    </Badge>
+                  )}
                 </div>
                 <p className="text-sm text-ink-muted mt-1">
                   <Link href={`/users/${item.userId}`} className="text-ink hover:text-accent-ink">{item.userName}</Link>
@@ -121,6 +148,11 @@ export function ReviewQueueClient({ status, initialPage }: { status: ProofReview
                   {' · '}for {formatDate(item.scheduleDate)}
                   {item.submittedAt && <> · sent {formatDateTime(item.submittedAt)}</>}
                 </p>
+                {item.userDeleteAt && status === 'IN_REVIEW' && (
+                  <p id={`pending-deletion-${item.id}`} className="text-xs text-bad-ink mt-1">
+                    Approval is off: {PENDING_DELETION_TIP.charAt(0).toLowerCase() + PENDING_DELETION_TIP.slice(1)}
+                  </p>
+                )}
                 {item.reviewNote && (
                   <p className="text-sm text-ink-muted mt-1">
                     <span className="text-ink-faint">Reason given:</span> {item.reviewNote}
@@ -145,9 +177,17 @@ export function ReviewQueueClient({ status, initialPage }: { status: ProofReview
                   >
                     <X className="w-3.5 h-3.5 mr-1.5" /> Reject
                   </Button>
-                  <Button size="sm" disabled={busyId !== null} onClick={() => decide(item, 'APPROVE')}>
-                    <Check className="w-3.5 h-3.5 mr-1.5" /> {busyId === item.id ? 'Saving...' : `Approve (+${item.xpReward} XP)`}
-                  </Button>
+                  {/* A disabled button gets no hover events, so the tooltip sits on a wrapper. */}
+                  <span title={item.userDeleteAt ? PENDING_DELETION_TIP : undefined} className="inline-flex">
+                    <Button
+                      size="sm"
+                      disabled={busyId !== null || Boolean(item.userDeleteAt)}
+                      onClick={() => decide(item, 'APPROVE')}
+                      aria-describedby={item.userDeleteAt ? `pending-deletion-${item.id}` : undefined}
+                    >
+                      <Check className="w-3.5 h-3.5 mr-1.5" /> {busyId === item.id ? 'Saving...' : `Approve (+${item.xpReward} XP)`}
+                    </Button>
+                  </span>
                 </div>
               )}
               {status !== 'IN_REVIEW' && item.reviewedAt && (
