@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { logoutAction, getSessionUser } from '@/lib/auth/actions';
@@ -14,7 +15,6 @@ import { SessionTimeoutModal } from '@/components/session-timeout-modal';
 import type { User } from '@/types/user';
 import type { Task } from '@/types/task';
 import {
-  Sparkles,
   LayoutDashboard,
   Users,
   ListChecks,
@@ -254,9 +254,7 @@ export default function DashboardLayout({
       {/* Sidebar for Desktop */}
       <aside className="hidden md:flex flex-col w-64 border-r border-line bg-surface/40 backdrop-blur-md shrink-0">
         <div className="flex items-center gap-3 px-6 h-16 border-b border-line shrink-0">
-          <div className="w-8 h-8 rounded-lg bg-accent/15 flex items-center justify-center border border-accent/20">
-            <Sparkles className="w-4 h-4 text-accent-ink" />
-          </div>
+          <Image src="/logo.png" alt="HunterX" width={32} height={32} className="w-8 h-8 rounded-lg" priority />
           <span className="font-bold tracking-tight text-ink">HunterX Control</span>
         </div>
 
@@ -310,9 +308,7 @@ export default function DashboardLayout({
       >
         <div className="flex items-center justify-between px-6 h-16 border-b border-line shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-accent/15 flex items-center justify-center border border-accent/20">
-              <Sparkles className="w-4 h-4 text-accent-ink" />
-            </div>
+            <Image src="/logo.png" alt="HunterX" width={32} height={32} className="w-8 h-8 rounded-lg" priority />
             <span className="font-bold tracking-tight text-ink">HunterX Control</span>
           </div>
           <button

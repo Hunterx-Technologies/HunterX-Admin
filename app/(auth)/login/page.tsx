@@ -1,12 +1,13 @@
 'use client';
 
 import * as React from 'react';
+import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { loginAction } from '@/lib/auth/actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
-import { Sparkles, Lock, Mail, AlertTriangle } from 'lucide-react';
+import { Lock, Mail, AlertTriangle } from 'lucide-react';
 
 function LoginForm() {
   const router = useRouter();
@@ -111,9 +112,7 @@ export default function LoginPage() {
 
       <div className="w-full max-w-md relative z-10">
         <div className="flex flex-col items-center mb-8">
-          <div className="w-12 h-12 rounded-xl bg-accent/15 flex items-center justify-center border border-accent/20 mb-4 shadow-[0_0_20px_rgba(124,58,237,0.15)]">
-            <Sparkles className="w-6 h-6 text-accent-ink" />
-          </div>
+          <Image src="/logo.png" alt="HunterX" width={48} height={48} className="w-12 h-12 rounded-xl mb-4" priority />
           <h1 className="text-2xl font-bold tracking-tight text-ink">HunterX Admin</h1>
           <p className="text-sm text-ink-muted mt-1">Sign in to control the gaming engine</p>
         </div>
