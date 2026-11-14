@@ -33,6 +33,11 @@ export async function renameReward(tab: RewardTab, rewardId: string, name: strin
   await unwrap(apiClient.patch<ApiResponse<unknown>>(`/admin/rewards/${tab}/${rewardId}`, { description: name }));
 }
 
+/** Change a streak reward's days or a level-up reward's level (e.g. to fix a typo). */
+export async function changeRewardValue(tab: RewardTab, rewardId: string, value: number): Promise<void> {
+  await unwrap(apiClient.patch<ApiResponse<unknown>>(`/admin/rewards/${tab}/${rewardId}`, { value }));
+}
+
 /** form: built by buildCouponFormData (lib/reward-form.ts), so it can carry the image file. */
 export async function createRewardCoupon(tab: RewardTab, rewardId: string, form: FormData): Promise<void> {
   await unwrap(apiClient.post<ApiResponse<unknown>>(`/admin/rewards/${tab}/${rewardId}/coupons`, form));
