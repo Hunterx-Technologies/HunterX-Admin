@@ -13,6 +13,7 @@ import { Dialog } from '@/components/ui/dialog';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
+  changeRewardValue,
   createReward,
   createRewardCoupon,
   deleteReward,
@@ -130,15 +131,64 @@ export function RewardTriggersClient({ tab, triggers, loadError }: { tab: Reward
   const [error, setError] = React.useState<string | null>(null);
   const [notice, setNotice] = React.useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = React.useState<RewardTrigger | null>(null);
+  const [confirmDeleteCoupon, setConfirmDeleteCoupon] = React.useState<RewardCoupon | null>(null);
   const [renaming, setRenaming] = React.useState<{ id: string; name: string } | null>(null);
 
-  const renameValid = !!renaming && renaming.name.trim().length > 0 && renaming.name.trim().length <= 120;
+  // On/off switches flip at once (optimistic) instead of waiting for the save
+  // and page refresh, and only the switch being saved is locked — so the rest
+  // of the page doesn't dim and blink. Keys: `t:<rewardId>` / `c:<couponId>`.
+  const [toggled, setToggled] = React.useState<Record<string, boolean>>({});
+  const savingToggles = React.useRef(new Set<string>());
+  const serverActive = React.useMemo(() => {
+    const map: Record<string, boolean> = {};
+    for (const t of triggers) {
+      map[`t:${t.id}`] = t.isActive;
+      for (const c of t.coupons) map[`c:${c.id}`] = c.isActive;
+    }
+    return map;
+  }, [triggers]);
+  // Once fresh data shows the saved value, drop the optimistic one.
+  React.useEffect(() => {
+    setToggled((prev) => {
+      const next = Object.fromEntries(Object.entries(prev).filter(([key, v]) => serverActive[key] !== v || savingToggles.current.has(key)));
+      return Object.keys(next).length === Object.keys(prev).length ? prev : next;
+    });
+  }, [serverActive]);
+  const isOn = (key: string) => toggled[key] ?? serverActive[key];
+  const toggle = async (key: string, checked: boolean, save: () => Promise<void>) => {
+    if (savingToggles.current.has(key)) return;
+    savingToggles.current.add(key);
+    setToggled((prev) => ({ ...prev, [key]: checked }));
+    setError(null);
+    setNotice(null);
+    try {
+      await save();
+      React.startTransition(() => router.refresh());
+    } catch (err) {
+      setToggled((prev) => {
+        const rest = { ...prev };
+        delete rest[key];
+        return rest;
+      });
+      setError(errorMessage(err, 'Something went wrong. Try again.'));
+    } finally {
+      savingToggles.current.delete(key);
+    }
+  };
+
+  // Special rewards edit their name; streak / level rewards their number.
+  const editsValue = kind === 'STREAK' || kind === 'LEVEL_UP';
+  const renameNumber = Number(renaming?.name);
+  const renameValid = !!renaming && (editsValue
+    ? Number.isInteger(renameNumber) && renameNumber >= 1 && renameNumber <= (section.max ?? 0)
+    : renaming.name.trim().length > 0 && renaming.name.trim().length <= 120);
   const saveRename = (m: RewardTrigger) => {
     if (!renaming || !renameValid) return;
     const name = renaming.name.trim();
-    if (name === triggerLabel(m)) return setRenaming(null);
+    if (editsValue ? renameNumber === m.value : name === triggerLabel(m)) return setRenaming(null);
     run(`rename-${m.id}`, async () => {
-      await renameReward(tab, m.id, name);
+      if (editsValue) await changeRewardValue(tab, m.id, renameNumber);
+      else await renameReward(tab, m.id, name);
       setRenaming(null);
     });
   };
@@ -225,8 +275,8 @@ export function RewardTriggersClient({ tab, triggers, loadError }: { tab: Reward
       )}
 
       <div className="space-y-4">
-        {triggers.map((m) => (
-          <Card key={m.id} className={m.isActive ? 'space-y-4' : 'space-y-4 border-dashed'}>
+        {triggers.map((m) => { const active = isOn(`t:${m.id}`); return (
+          <Card key={m.id} className={active ? 'space-y-4' : 'space-y-4 border-dashed'}>
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 {renaming?.id === m.id ? (
@@ -239,12 +289,15 @@ export function RewardTriggersClient({ tab, triggers, loadError }: { tab: Reward
                   >
                     <Input
                       autoFocus
-                      aria-label="Special reward name"
-                      maxLength={120}
+                      aria-label={section.inputLabel}
+                      type={editsValue ? 'number' : 'text'}
+                      min={editsValue ? 1 : undefined}
+                      max={editsValue ? section.max : undefined}
+                      maxLength={editsValue ? undefined : 120}
                       value={renaming.name}
                       onChange={(e) => setRenaming({ id: m.id, name: e.target.value })}
                       onKeyDown={(e) => e.key === 'Escape' && setRenaming(null)}
-                      className="w-72 max-w-full"
+                      className={editsValue ? 'w-32' : 'w-72 max-w-full'}
                     />
                     <Button type="submit" size="sm" disabled={!renameValid || busyId !== null}>
                       {busyId === `rename-${m.id}` ? 'Saving...' : 'Save'}
@@ -252,29 +305,35 @@ export function RewardTriggersClient({ tab, triggers, loadError }: { tab: Reward
                     <Button type="button" size="sm" variant="ghost" disabled={busyId === `rename-${m.id}`} onClick={() => setRenaming(null)}>
                       Cancel
                     </Button>
+                    {editsValue && m.cardsGranted > 0 && (
+                      <p className="basis-full text-xs text-warn-ink">
+                        {m.cardsGranted.toLocaleString()} hunter{m.cardsGranted === 1 ? ' has' : 's have'} already got this card. They keep it (it&apos;ll show the new{' '}
+                        {kind === 'STREAK' ? 'streak' : 'level'}) and won&apos;t get this reward again.
+                      </p>
+                    )}
                   </form>
                 ) : (
                   <div className="flex items-center gap-2">
-                    <h3 className={m.isActive ? 'text-base font-bold text-ink' : 'text-base font-bold text-ink-muted'}>{triggerLabel(m)}</h3>
-                    {m.kind === 'TASK' && (
+                    <h3 className={active ? 'text-base font-bold text-ink' : 'text-base font-bold text-ink-muted'}>{triggerLabel(m)}</h3>
+                    {m.kind !== 'BIRTHDAY' && (
                       <button
                         type="button"
-                        aria-label="Rename reward"
-                        title="Rename"
+                        aria-label={editsValue ? `Edit ${section.inputLabel?.toLowerCase()}` : 'Rename reward'}
+                        title={editsValue ? 'Edit' : 'Rename'}
                         disabled={busyId !== null}
-                        onClick={() => setRenaming({ id: m.id, name: triggerLabel(m) })}
+                        onClick={() => setRenaming({ id: m.id, name: editsValue ? String(m.value) : triggerLabel(m) })}
                         className="p-1 rounded-md text-ink-faint hover:text-ink hover:bg-surface-inset disabled:opacity-50 cursor-pointer"
                       >
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
                     )}
-                    <Badge variant={m.isActive ? 'success' : 'muted'}>{m.isActive ? 'Active' : 'Inactive'}</Badge>
+                    <Badge variant={active ? 'success' : 'muted'}>{active ? 'Active' : 'Inactive'}</Badge>
                   </div>
                 )}
                 <p className="text-sm text-ink-faint mt-0.5">
-                  {!m.isActive
+                  {!active
                     ? `Switched off — grants no new cards. ${m.cardsGranted.toLocaleString()} already granted stay with their hunters.`
-                    : m.coupons.some((c) => c.isActive)
+                    : m.coupons.some((c) => isOn(`c:${c.id}`))
                     ? `${m.cardsGranted.toLocaleString()} scratch card${m.cardsGranted === 1 ? '' : 's'} granted`
                     : 'No active coupons — this grants no scratch card yet.'}
                 </p>
@@ -311,9 +370,8 @@ export function RewardTriggersClient({ tab, triggers, loadError }: { tab: Reward
                   </Button>
                 )}
                 <Switch
-                  checked={m.isActive}
-                  disabled={busyId !== null}
-                  onCheckedChange={(checked) => run(`trigger-${m.id}`, () => setRewardActive(tab, m.id, checked))}
+                  checked={active}
+                  onCheckedChange={(checked) => toggle(`t:${m.id}`, checked, () => setRewardActive(tab, m.id, checked))}
                 />
                 <Button type="button" size="sm" variant="outline" onClick={() => setDialog({ mode: 'create', trigger: m })}>
                   <Plus className="w-3.5 h-3.5 mr-1" /> Add coupon
@@ -336,7 +394,7 @@ export function RewardTriggersClient({ tab, triggers, loadError }: { tab: Reward
                 </TableHeader>
                 <TableBody>
                   {m.coupons.map((c) => (
-                    <TableRow key={c.id} className={c.isActive ? '' : 'opacity-60'}>
+                    <TableRow key={c.id} className={isOn(`c:${c.id}`) ? '' : 'opacity-60'}>
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <RewardImage src={c.productImageUrl} alt={c.title} className="w-12 h-10 shrink-0" />
@@ -362,9 +420,8 @@ export function RewardTriggersClient({ tab, triggers, loadError }: { tab: Reward
                       </TableCell>
                       <TableCell>
                         <Switch
-                          checked={c.isActive}
-                          disabled={busyId !== null}
-                          onCheckedChange={(checked) => run(c.id, () => setRewardCouponActive(c.id, checked))}
+                          checked={isOn(`c:${c.id}`)}
+                          onCheckedChange={(checked) => toggle(`c:${c.id}`, checked, () => setRewardCouponActive(c.id, checked))}
                         />
                       </TableCell>
                       <TableCell className="text-right whitespace-nowrap">
@@ -383,12 +440,7 @@ export function RewardTriggersClient({ tab, triggers, loadError }: { tab: Reward
                           variant="ghost"
                           aria-label="Delete coupon"
                           disabled={busyId !== null}
-                          onClick={() =>
-                            run(c.id, async () => {
-                              const deleted = await deleteRewardCoupon(c.id);
-                              return deleted ? 'Coupon deleted.' : `"${c.title}" was already awarded, so it was deactivated instead of deleted.`;
-                            })
-                          }
+                          onClick={() => setConfirmDeleteCoupon(c)}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </Button>
@@ -399,7 +451,7 @@ export function RewardTriggersClient({ tab, triggers, loadError }: { tab: Reward
         </Table>
       )}
     </Card>
-        ))}
+        ); })}
       </div>
 
       <ConfirmDialog
@@ -423,6 +475,34 @@ export function RewardTriggersClient({ tab, triggers, loadError }: { tab: Reward
             await deleteReward(tab, target.id);
             return `${triggerLabel(target)} reward deleted.`;
           }).finally(() => setConfirmDelete(null));
+        }}
+      />
+
+      <ConfirmDialog
+        open={!!confirmDeleteCoupon}
+        title={`Delete "${confirmDeleteCoupon?.title ?? ''}"?`}
+        message={
+          confirmDeleteCoupon && confirmDeleteCoupon.awardedCount > 0 ? (
+            <>
+              {confirmDeleteCoupon.awardedCount.toLocaleString()} hunter{confirmDeleteCoupon.awardedCount === 1 ? ' has' : 's have'}{' '}
+              already won this coupon, so it will be switched off instead of deleted. They keep their codes; it just won&apos;t be drawn again.
+            </>
+          ) : (
+            <>Nobody has won this coupon yet, so it will be removed for good, along with its image. This can&apos;t be undone.</>
+          )
+        }
+        confirmLabel={confirmDeleteCoupon && confirmDeleteCoupon.awardedCount > 0 ? 'Switch off coupon' : 'Delete coupon'}
+        busyLabel="Deleting..."
+        busy={busyId === `delete-coupon-${confirmDeleteCoupon?.id}`}
+        destructive
+        onCancel={() => setConfirmDeleteCoupon(null)}
+        onConfirm={() => {
+          const target = confirmDeleteCoupon;
+          if (!target) return;
+          run(`delete-coupon-${target.id}`, async () => {
+            const deleted = await deleteRewardCoupon(target.id);
+            return deleted ? 'Coupon deleted.' : `"${target.title}" was already awarded, so it was deactivated instead of deleted.`;
+          }).finally(() => setConfirmDeleteCoupon(null));
         }}
       />
 
