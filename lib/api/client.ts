@@ -2,6 +2,7 @@ import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { env } from '@/config/env';
 import type { ApiResponse } from '@/types/api';
 import { ACCESS_TOKEN_COOKIE, AUTH_MODE_COOKIE, REFRESH_TOKEN_COOKIE, authCookieMode, clearAuthCookies, writeAuthCookies } from '@/lib/auth/cookies';
+import { TZ_COOKIE, resolveTimeZone } from '@/lib/admin-timezone';
 
 export class ApiError extends Error {
   code: string;
@@ -111,6 +112,10 @@ apiClient.interceptors.request.use(async (config) => {
   } else if (!isAuthRoute) {
     throw new ApiError('unauthorized', 'Unauthorized — no token provided', 401);
   }
+  // The admin's browser zone (hx_tz cookie, lib/admin-timezone.ts): the
+  // backend's dashboards and date checks use the admin's own calendar.
+  const tz = (await serverCookies())?.get(TZ_COOKIE)?.value;
+  config.headers.set('X-Timezone', resolveTimeZone(tz));
   return config;
 });
 

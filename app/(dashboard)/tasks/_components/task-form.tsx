@@ -20,6 +20,8 @@ import { recurrenceLabel, taskTypeLabel } from '@/lib/task-labels';
 import type { RewardTrigger } from '@/types/reward';
 
 import { imageFileError, MAX_IMAGE_LABEL } from '@/lib/upload-limits';
+import { todayIn } from '@/lib/admin-timezone';
+import { useAdminTimeZone } from '@/components/admin-timezone';
 
 // Mirrors adminTaskService.js#XP_CAP — daily admin-authored tasks cap at 10
 // XP, weekly quests at 70, monthly at 300 — keeping admin-created tasks in line
@@ -60,6 +62,7 @@ function toDateInput(value: string | null) {
 /** specialRewards: the rewards on Rewards → Special rewards, for the optional special-reward picker. */
 export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: Task; specialRewards?: RewardTrigger[] }) {
   const router = useRouter();
+  const timeZone = useAdminTimeZone();
   // Built-in daily tasks (water, steps, protein, sleep): only title,
   // description, XP, partial completion and images are editable — the
   // backend refuses anything else (adminTaskService#updateBuiltInTask).
@@ -164,13 +167,13 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
   );
 
   // Same date rules as the backend (adminTaskService#buildTaskData): a start
-  // date can't be in the past (IST) unless it's an existing task's unchanged
+  // date can't be in the past (admin's own calendar) unless it's an existing task's unchanged
   // start, and the end can't come before the start. Dates are 'YYYY-MM-DD',
   // so string comparison is date comparison.
-  const todayIst = new Date(Date.now() + 330 * 60 * 1000).toISOString().slice(0, 10);
+  const today = todayIn(timeZone);
   const startUnchanged = Boolean(initialTask) && form.startDate === ((initialTask ? toDateInput(initialTask.startDate) || null : null));
   const startDateError =
-    form.startDate && !startUnchanged && form.startDate < todayIst ? 'Start date can’t be in the past.' : null;
+    form.startDate && !startUnchanged && form.startDate < today ? 'Start date can’t be in the past.' : null;
   const endDateError =
     form.startDate && form.endDate && form.endDate < form.startDate ? 'End date can’t be before the start date.' : null;
   const isEndDateValid = (!form.isPaid || Boolean(form.endDate)) && !endDateError;

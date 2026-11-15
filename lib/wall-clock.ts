@@ -1,28 +1,26 @@
 // Date/time helpers for scheduled notifications. A schedule is a wall clock
 // every hunter receives it at in their OWN timezone (9 AM India, then 9 AM
-// London, ...); only "is it in the future?" is judged on the admin's IST
-// clock (fixed UTC+05:30, no DST) — mirrors HunterX-Backend
-// src/utils/broadcastSchedule.js.
+// London, ...); only "is it in the future?" is judged on the admin's own
+// clock (their browser's zone, lib/admin-timezone.ts) — mirrors
+// HunterX-Backend src/utils/broadcastSchedule.js.
 
 import type { BroadcastRecurrence } from '@/types/notification';
+import { todayIn, wallToEpoch } from '@/lib/admin-timezone';
 
-const IST_OFFSET_MS = 330 * 60 * 1000;
-
-/** IST wall-clock 'YYYY-MM-DD' + 'HH:MM' → epoch ms. NaN when malformed. */
-export function istToEpoch(date: string, time: string): number {
-  const d = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
-  const t = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(time);
-  if (!d || !t) return NaN;
-  return Date.UTC(Number(d[1]), Number(d[2]) - 1, Number(d[3]), Number(t[1]), Number(t[2])) - IST_OFFSET_MS;
+/** The admin's wall clock 'YYYY-MM-DD' + 'HH:MM' in `tz` → epoch ms. NaN when malformed. */
+export function adminWallToEpoch(date: string, time: string, tz: string): number {
+  return wallToEpoch(date, time, tz);
 }
 
-/** A sensible default send moment: the next full hour, at least 30 min away, in IST. */
-export function defaultSendMoment(now = Date.now()): { date: string; time: string } {
-  const ist = new Date(now + IST_OFFSET_MS + 30 * 60 * 1000);
-  ist.setUTCMinutes(0, 0, 0);
-  ist.setUTCHours(ist.getUTCHours() + 1);
-  const iso = ist.toISOString();
-  return { date: iso.slice(0, 10), time: iso.slice(11, 16) };
+/** A sensible default send moment: the next full hour, at least 30 min away, on the admin's clock. */
+export function defaultSendMoment(tz: string, now = Date.now()): { date: string; time: string } {
+  const soon = Math.floor((now + 30 * 60 * 1000) / 60_000) * 60_000;
+  // Minutes past the hour on the admin's clock (zones like +5:30 aren't on
+  // UTC's hour), then on to the next whole hour.
+  const minute = Number(new Intl.DateTimeFormat('en-GB', { timeZone: tz, minute: '2-digit' }).format(new Date(soon)));
+  const at = soon + (60 - minute) * 60_000;
+  const time = new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(at));
+  return { date: todayIn(tz, at), time };
 }
 
 /** 'YYYY-MM-DDTHH:MM' wall clock → e.g. "Thu, 12 Nov 2026, 09:00 local time". */
@@ -51,8 +49,7 @@ function ordinal(n: number): string {
 
 /** Plain-English summary of when a schedule sends. */
 export function describeSchedule(date: string, time: string, recurrence: BroadcastRecurrence): string {
-  const epoch = istToEpoch(date, time);
-  if (Number.isNaN(epoch)) return '';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) return '';
   const day = new Date(Date.UTC(Number(date.slice(0, 4)), Number(date.slice(5, 7)) - 1, Number(date.slice(8, 10))));
   const weekday = day.toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'UTC' });
   const start = day.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });

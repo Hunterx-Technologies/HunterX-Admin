@@ -1,7 +1,8 @@
 // The Dashboard's date filter, kept in the URL (?range=30d or ?from=&to=)
 // so a reload or a shared link shows the same period. The backend reads
 // the same params (HunterX-Backend src/utils/dashboardRange.js) and
-// defaults to the last 7 days. Dates are IST calendar days, inclusive.
+// defaults to the last 7 days. Dates are calendar days on the admin's own
+// zone (lib/admin-timezone.ts), inclusive.
 
 export const RANGE_PRESETS = [
   { key: '7d', label: 'Last 7 days', short: '7 days' },
@@ -27,11 +28,6 @@ export const DEFAULT_RANGE: DashboardRange = { preset: '7d' };
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const isPreset = (v: unknown): v is RangePreset => RANGE_PRESETS.some((p) => p.key === v);
 const first = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
-
-/** Today in IST as 'YYYY-MM-DD' (the backend's notion of "today"). */
-export function todayIst(now: number): string {
-  return new Date(now + 330 * 60 * 1000).toISOString().slice(0, 10);
-}
 
 /** Reads the range from the page's search params; anything malformed → last 7 days. */
 export function parseDashboardRange(sp: Record<string, string | string[] | undefined>): DashboardRange {

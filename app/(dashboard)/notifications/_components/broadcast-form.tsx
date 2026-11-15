@@ -10,7 +10,8 @@ import { DatePicker } from '@/components/ui/date-picker';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { createSchedule, sendBroadcast, updateSchedule } from '@/lib/api/notification-actions';
-import { defaultSendMoment, describeSchedule, formatWall, inQuietHours, istToEpoch } from '@/lib/ist';
+import { adminWallToEpoch, defaultSendMoment, describeSchedule, formatWall, inQuietHours } from '@/lib/wall-clock';
+import { useAdminTimeZone } from '@/components/admin-timezone';
 import type {
   BroadcastAudience,
   BroadcastRecurrence,
@@ -43,8 +44,8 @@ interface FormState extends Omit<ScheduleInput, 'recurrence'> {
   frequency: RepeatFrequency;
 }
 
-function emptyForm(): FormState {
-  const { date, time } = defaultSendMoment();
+function emptyForm(tz: string): FormState {
+  const { date, time } = defaultSendMoment(tz);
   return {
     title: '',
     body: '',
@@ -100,7 +101,8 @@ export const BroadcastForm = React.forwardRef<HTMLFormElement, BroadcastFormProp
   ref
 ) {
   const router = useRouter();
-  const [form, setForm] = React.useState<FormState>(emptyForm);
+  const timeZone = useAdminTimeZone();
+  const [form, setForm] = React.useState<FormState>(() => emptyForm(timeZone));
   // Preview is tied to the exact input it was computed for — any edit
   // invalidates it, so "Send" always matches the count the admin saw.
   const [preview, setPreview] = React.useState<BroadcastResult | null>(null);
@@ -120,7 +122,7 @@ export const BroadcastForm = React.forwardRef<HTMLFormElement, BroadcastFormProp
   const [loadedId, setLoadedId] = React.useState<string | null>(null);
   if (editingId !== loadedId) {
     setLoadedId(editingId);
-    setForm(editing ? formFromSchedule(editing) : emptyForm());
+    setForm(editing ? formFromSchedule(editing) : emptyForm(timeZone));
     setPreview(null);
     setError(null);
     if (editing) setNotice(null);
@@ -134,7 +136,7 @@ export const BroadcastForm = React.forwardRef<HTMLFormElement, BroadcastFormProp
 
   const scheduled = form.when === 'later';
   const recurrence: BroadcastRecurrence = form.repeat ? form.frequency : 'NONE';
-  const sendAt = istToEpoch(form.sendDate, form.sendTime);
+  const sendAt = adminWallToEpoch(form.sendDate, form.sendTime, timeZone);
   // Editing a recurring schedule may keep a start date that has passed — the
   // backend just moves on to the next occurrence. Everything else must be ahead.
   const mustBeFuture = !(editing && recurrence !== 'NONE');
@@ -186,7 +188,7 @@ export const BroadcastForm = React.forwardRef<HTMLFormElement, BroadcastFormProp
         setNotice({ kind: 'scheduled', text: `Notification scheduled. ${nextSendText(saved)}` });
       }
       setPreview(null);
-      setForm(emptyForm());
+      setForm(emptyForm(timeZone));
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');

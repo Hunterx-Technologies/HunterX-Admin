@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { EmptyState } from '@/components/ui/empty-state';
 import { RankBadge } from '@/components/rank-badge';
 import type { User } from '@/types/user';
-import { banUser, unbanUser, resetUserStreak } from '@/lib/api/user-actions';
+import { banUser, unbanUser, resetUserStreak, type BanPush } from '@/lib/api/user-actions';
 import { getUserById } from '@/lib/api/users';
 import { formatDate, formatDateTime } from '@/lib/utils';
 import {
@@ -45,6 +45,16 @@ const TAB_ITEMS = [
   { value: 'feedback', label: 'Feedback / Ratings' },
 ];
 
+// Shown after a ban: did the "account suspended" push reach the hunter?
+// Either way every session is already ended; the app also signs out on its
+// next request.
+const BAN_PUSH_TEXT: Record<BanPush['status'], (devices: number) => string> = {
+  SENT: (n) => `Sent to their phone${n > 1 ? ` (${n} devices)` : ''}. The app signs them out right away.`,
+  NO_DEVICE: () => 'Not sent: they never allowed notifications. They’re signed out the next time they open the app.',
+  RETRYING: () => 'Not delivered yet, retrying automatically. They’re signed out the next time they open the app anyway.',
+  FAILED: () => 'Couldn’t be delivered. They’re signed out the next time they open the app.',
+};
+
 export function UserDetailClient({ user: initialUser }: { user: User }) {
   const router = useRouter();
   const [user, setUser] = React.useState(initialUser);
@@ -56,6 +66,8 @@ export function UserDetailClient({ user: initialUser }: { user: User }) {
   const [banReason, setBanReason] = React.useState('');
   const [actionPending, setActionPending] = React.useState(false);
   const [actionError, setActionError] = React.useState<string | null>(null);
+  // Outcome of the "account suspended" push from the ban just made here.
+  const [banPush, setBanPush] = React.useState<BanPush | null>(null);
 
   const AuthIcon = AUTH_ICON[user.authProvider];
   const isTargetAdmin = String(user.role || '').toLowerCase() === 'admin';
@@ -64,8 +76,9 @@ export function UserDetailClient({ user: initialUser }: { user: User }) {
     setActionPending(true);
     setActionError(null);
     try {
-      const updated = await banUser(user.id, banReason.trim());
+      const { user: updated, banPush: push } = await banUser(user.id, banReason.trim());
       setUser(updated);
+      setBanPush(push);
       setBanDialogOpen(false);
       setBanReason('');
       router.refresh();
@@ -95,6 +108,7 @@ export function UserDetailClient({ user: initialUser }: { user: User }) {
     try {
       const updated = await unbanUser(user.id);
       setUser(updated);
+      setBanPush(null);
       setUnbanDialogOpen(false);
       router.refresh();
     } catch (err: any) {
@@ -169,6 +183,12 @@ export function UserDetailClient({ user: initialUser }: { user: User }) {
               <span className="font-medium text-red-200">Reason: </span>
               {user.banReason || 'No reason given'}
             </p>
+            {banPush && (
+              <p className="text-red-300/90 text-xs">
+                <span className="font-medium text-red-200">Notification: </span>
+                {BAN_PUSH_TEXT[banPush.status](banPush.devices)}
+              </p>
+            )}
           </div>
         </div>
       )}

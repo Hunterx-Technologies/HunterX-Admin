@@ -6,14 +6,27 @@ import { apiClient, unwrap } from '@/lib/api/client';
 import { mapRawUserToUser } from '@/lib/api/user-mapper';
 import { revalidatePath } from 'next/cache';
 
-export async function banUser(id: string, reason?: string): Promise<User> {
+/**
+ * What happened to the "account suspended" push sent with a ban:
+ * SENT (reached their phone), NO_DEVICE (never allowed notifications — they're
+ * signed out the next time they open the app), RETRYING, or FAILED.
+ */
+export type BanPushStatus = 'SENT' | 'NO_DEVICE' | 'RETRYING' | 'FAILED';
+export interface BanPush {
+  status: BanPushStatus;
+  devices: number;
+}
+
+export async function banUser(id: string, reason?: string): Promise<{ user: User; banPush: BanPush | null }> {
   const trimmed = (reason ?? '').trim();
   const body = trimmed.length > 0 ? { reason: trimmed } : {};
   try {
-    const raw = await unwrap(apiClient.patch<ApiResponse<{ user: any }>>(`/admin/users/${id}/ban`, body));
+    const raw = await unwrap(
+      apiClient.patch<ApiResponse<{ user: any; ban_push?: BanPush }>>(`/admin/users/${id}/ban`, body)
+    );
     revalidatePath('/users');
     revalidatePath(`/users/${id}`);
-    return mapRawUserToUser(raw.user);
+    return { user: mapRawUserToUser(raw.user), banPush: raw.ban_push ?? null };
   } catch (error: any) {
     const status = error?.status || error?.response?.status;
     const message = error?.message || error?.response?.data?.message || 'Failed to ban user.';

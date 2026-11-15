@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { EmptyState } from '@/components/ui/empty-state';
 import { changeScheduleState } from '@/lib/api/notification-actions';
-import { RECURRENCE_LABEL, describeSchedule, formatWall } from '@/lib/ist';
+import { RECURRENCE_LABEL, describeSchedule, formatWall } from '@/lib/wall-clock';
 import { cn } from '@/lib/utils';
 import type { BroadcastSchedule, ScheduleRun, ScheduleStatus } from '@/types/notification';
 import { AlertCircle, CalendarClock, Pause, Pencil, Play, Repeat, X } from 'lucide-react';

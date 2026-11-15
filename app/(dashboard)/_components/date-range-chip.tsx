@@ -10,9 +10,10 @@ import {
   RANGE_PRESETS,
   rangeChipLabel,
   rangeSearch,
-  todayIst,
   type DashboardRange,
 } from '@/lib/dashboard-range';
+import { todayIn } from '@/lib/admin-timezone';
+import { useAdminTimeZone } from '@/components/admin-timezone';
 
 const MAX_CUSTOM_DAYS = 5 * 366; // same limit as the backend
 // DatePicker's portaled calendar panel.
@@ -35,6 +36,7 @@ function customRangeError(from: string, to: string, today: string): string | nul
 export function DateRangeChip({ range }: { range: DashboardRange }) {
   const router = useRouter();
   const pathname = usePathname();
+  const timeZone = useAdminTimeZone();
   const [pending, startTransition] = React.useTransition();
   const [open, setOpen] = React.useState(false);
   const [customOpen, setCustomOpen] = React.useState(range.preset === 'custom');
@@ -72,7 +74,7 @@ export function DateRangeChip({ range }: { range: DashboardRange }) {
   };
 
   const applyCustom = () => {
-    const error = customRangeError(from, to, todayIst(Date.now()));
+    const error = customRangeError(from, to, todayIn(timeZone));
     setCustomError(error);
     if (!error) apply({ preset: 'custom', from, to });
   };

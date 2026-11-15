@@ -2,17 +2,20 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { Broadcast } from '@/types/notification';
 import { Megaphone } from 'lucide-react';
+import { useAdminTimeZone } from '@/components/admin-timezone';
 
 function pct(part: number, total: number) {
   return total > 0 ? `${Math.round((part / total) * 100)}%` : '—';
 }
 
-function formatDate(iso: string | null) {
+// Shown on the admin's own clock (lib/admin-timezone.ts).
+function formatDate(iso: string | null, timeZone: string) {
   if (!iso) return '—';
-  return new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' });
+  return new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone });
 }
 
 export function BroadcastHistory({ broadcasts }: { broadcasts: Broadcast[] }) {
+  const timeZone = useAdminTimeZone();
   return (
     <>
       {broadcasts.length === 0 ? (
@@ -36,7 +39,7 @@ export function BroadcastHistory({ broadcasts }: { broadcasts: Broadcast[] }) {
                   <p className="font-semibold text-ink truncate">{b.title}</p>
                   <p className="text-xs text-ink-faint truncate">{b.body}</p>
                 </TableCell>
-                <TableCell className="whitespace-nowrap text-ink-muted">{formatDate(b.createdAt)}</TableCell>
+                <TableCell className="whitespace-nowrap text-ink-muted">{formatDate(b.createdAt, timeZone)}</TableCell>
                 <TableCell>{b.recipients.toLocaleString()}</TableCell>
                 <TableCell>{b.pushed.toLocaleString()}</TableCell>
                 <TableCell>{b.pending.toLocaleString()}</TableCell>
