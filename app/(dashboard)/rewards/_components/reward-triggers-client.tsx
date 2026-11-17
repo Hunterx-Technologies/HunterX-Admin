@@ -354,7 +354,9 @@ export function RewardTriggersClient({ tab, triggers, loadError }: { tab: Reward
               </div>
               <div className="flex items-center gap-2">
                 {m.cardsAwaitingStock > 0 && (
-                  <Badge variant="warning">{m.cardsAwaitingStock} waiting on stock</Badge>
+                  <span title="These hunters earned this reward after its coupons ran out. They haven't been told yet: add stock and they get it automatically, first come first served.">
+                    <Badge variant="warning">{m.cardsAwaitingStock} waiting on stock</Badge>
+                  </span>
                 )}
                 {m.cardsGranted === 0 && (
                   <Button
