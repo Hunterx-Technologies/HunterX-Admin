@@ -30,6 +30,7 @@ export interface RawRewardCoupon {
   product_name: string | null;
   product_category: string | null;
   product_image_url: string | null;
+  redeem_url: string | null;
   is_active: boolean;
   eligible: boolean;
   probability_percent: number;
@@ -67,6 +68,7 @@ function mapCoupon(c: RawRewardCoupon): RewardCoupon {
     productName: c.product_name,
     productCategory: c.product_category,
     productImageUrl: c.product_image_url,
+    redeemUrl: c.redeem_url ?? null,
     isActive: c.is_active,
     eligible: c.eligible,
     probabilityPercent: c.probability_percent,

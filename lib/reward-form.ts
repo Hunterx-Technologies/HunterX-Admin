@@ -25,6 +25,7 @@ export function buildCouponFormData(input: CouponInput): FormData {
   fd.append('description', input.description.trim());
   fd.append('product_name', input.productName.trim());
   fd.append('product_category', input.productCategory.trim());
+  fd.append('redeem_url', input.redeemUrl.trim());
   fd.append('is_active', String(input.isActive));
   if (input.imageFile) fd.append('product_image', input.imageFile);
   else if (input.removeImage) fd.append('remove_product_image', 'true');

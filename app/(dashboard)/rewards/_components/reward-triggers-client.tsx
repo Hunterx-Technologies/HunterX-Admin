@@ -44,6 +44,7 @@ const EMPTY_COUPON: CouponInput = {
   description: '',
   productName: '',
   productCategory: '',
+  redeemUrl: '',
   imageFile: null,
   removeImage: false,
   isActive: true,
@@ -66,6 +67,7 @@ function couponToInput(c: RewardCoupon): CouponInput {
     description: c.description ?? '',
     productName: c.productName ?? '',
     productCategory: c.productCategory ?? '',
+    redeemUrl: c.redeemUrl ?? '',
     imageFile: null,
     removeImage: false,
     isActive: c.isActive,
@@ -642,6 +644,16 @@ function CouponDialog({ tab, state, onClose, onSaved }: { tab: RewardTab; state:
           <Input label="Product name (optional)" maxLength={120} value={form.productName} onChange={(e) => update('productName', e.target.value)} />
           <Input label="Product category (optional)" maxLength={120} value={form.productCategory} onChange={(e) => update('productCategory', e.target.value)} />
         </div>
+        <Input
+          label="Redeem URL (optional)"
+          hint="The partner's website. In the app, Redeem now copies the code, marks the reward redeemed and opens this link."
+          inputMode="url"
+          autoComplete="off"
+          maxLength={500}
+          placeholder="https://gymgasm.com"
+          value={form.redeemUrl}
+          onChange={(e) => update('redeemUrl', e.target.value)}
+        />
         <div className="space-y-1.5">
           <span className="block text-xs font-semibold text-ink-muted uppercase tracking-wider">Product image (optional)</span>
           <div className="flex items-center gap-4">

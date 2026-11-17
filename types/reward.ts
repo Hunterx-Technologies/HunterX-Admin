@@ -26,6 +26,8 @@ export interface RewardCoupon {
   productName: string | null;
   productCategory: string | null;
   productImageUrl: string | null;
+  /** The partner's website; the app's "Redeem now" opens it. null = none. */
+  redeemUrl: string | null;
   isActive: boolean;
   /** false = can't be drawn right now (inactive, outside its window, or out of stock). */
   eligible: boolean;
@@ -43,7 +45,7 @@ export interface RewardTrigger {
   tasks?: { id: string; title: string; isActive: boolean }[];
   description: string | null;
   cardsGranted: number;
-  /** Cards granted while nothing was in stock — they pick a prize when scratched. */
+  /** Hunters who earned it while nothing was in stock. Not told yet; they get it automatically when stock is added. */
   cardsAwaitingStock: number;
   coupons: RewardCoupon[];
 }
@@ -63,6 +65,7 @@ export interface CouponInput {
   description: string;
   productName: string;
   productCategory: string;
+  redeemUrl: string;
   /** A newly picked image to upload (compressed and stored in Cloudinary by the backend). */
   imageFile: File | null;
   /** Clear the coupon's current image on save. */
