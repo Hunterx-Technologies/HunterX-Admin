@@ -1,23 +1,21 @@
 import * as React from 'react';
 import { cn } from '@/lib/utils';
+import { FieldLabel } from '@/components/ui/help-tip';
 
 export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   error?: string;
+  /** Shown in a "?" tooltip beside the label. */
+  help?: React.ReactNode;
   /** Small helper text under the field (hidden while an error shows). */
   hint?: string;
 }
 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, type = 'text', label, error, hint, required, ...props }, ref) => {
+  ({ className, type = 'text', label, error, hint, help, required, ...props }, ref) => {
     return (
       <div className="w-full space-y-1.5">
-        {label && (
-          <label className="text-xs font-semibold text-ink-muted uppercase tracking-wider">
-            {label}
-            {required && <span className="text-bad-ink ml-0.5">*</span>}
-          </label>
-        )}
+        {label && <FieldLabel label={label} required={required} help={help} />}
         <input
           type={type}
           ref={ref}

@@ -1,21 +1,19 @@
 import * as React from 'react';
 import { cn } from '@/lib/utils';
+import { FieldLabel } from '@/components/ui/help-tip';
 
 export interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   label?: string;
   error?: string;
+  /** Shown in a "?" tooltip beside the label. */
+  help?: React.ReactNode;
 }
 
 export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
-  ({ className, label, error, required, ...props }, ref) => {
+  ({ className, label, error, help, required, ...props }, ref) => {
     return (
       <div className="w-full space-y-1.5">
-        {label && (
-          <label className="text-xs font-semibold text-ink-muted uppercase tracking-wider">
-            {label}
-            {required && <span className="text-bad-ink ml-0.5">*</span>}
-          </label>
-        )}
+        {label && <FieldLabel label={label} required={required} help={help} />}
         <textarea
           ref={ref}
           aria-required={required}
