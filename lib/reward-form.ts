@@ -17,7 +17,7 @@ export function buildCouponFormData(input: CouponInput): FormData {
   fd.append('discount_type', input.discountType);
   fd.append('discount_value', input.discountValue.trim());
   fd.append('currency', input.discountType === 'FLAT' ? input.currency.trim() : '');
-  fd.append('weight', input.weight.trim() || '1');
+  fd.append('chance_percent', input.chancePercent.trim());
   fd.append('total_quantity', input.totalQuantity.trim());
   fd.append('valid_from', dayStart(input.validFrom));
   fd.append('valid_until', dayEnd(input.validUntil));

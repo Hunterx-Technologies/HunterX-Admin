@@ -351,6 +351,7 @@ export function CouponActivityTable({ initial, range }: { initial: PagedList<Cou
         <TableHeader>
           <TableRow>
             <TableHead>Code</TableHead>
+            <TableHead>Coupon</TableHead>
             <TableHead>Partner</TableHead>
             <TableHead>User</TableHead>
             <TableHead>Action</TableHead>
@@ -361,7 +362,8 @@ export function CouponActivityTable({ initial, range }: { initial: PagedList<Cou
           {pageItems.map((e) => (
             <TableRow key={e.id}>
               <TableCell className="font-mono text-xs">{e.code}</TableCell>
-              <TableCell className="text-ink-muted">{e.partner}</TableCell>
+              <TableCell>{e.couponTitle ?? '—'}</TableCell>
+              <TableCell className={e.partner === 'Not assigned' ? 'text-ink-faint italic' : 'text-ink-muted'}>{e.partner}</TableCell>
               <TableCell>{e.userName}</TableCell>
               <TableCell>
                 <Badge variant={COUPON_ACTION_VARIANT[e.action]}>{e.action}</Badge>
@@ -371,7 +373,7 @@ export function CouponActivityTable({ initial, range }: { initial: PagedList<Cou
           ))}
           {pageItems.length === 0 && (
             <TableRow>
-              <TableCell colSpan={5} className="text-center text-ink-faint py-8">
+              <TableCell colSpan={6} className="text-center text-ink-faint py-8">
                 No data found.
               </TableCell>
             </TableRow>

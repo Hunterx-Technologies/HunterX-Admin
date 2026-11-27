@@ -20,8 +20,9 @@ export default async function RewardsPage({ searchParams }: { searchParams: Prom
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-ink">Rewards &amp; Coupons</h1>
         <p className="text-sm text-ink-muted mt-1">
-          Coupons a scratch card can reveal. Hunters earn a card on a streak milestone, on reaching a level, and on their
-          birthday; each card&apos;s prize is drawn at random by weight from that reward&apos;s active, in-date, in-stock coupons.
+          Coupons a scratch card can reveal. Hunters earn a card on a streak milestone, on reaching a level, on their
+          birthday, or from a special reward. Rewards are allocated according to the configured percentage for each coupon.
+          Eligible users completing the milestone are evaluated immediately, subject to allocation quotas and available coupon stock.
         </p>
       </div>
       <RewardTabs value={tab} />

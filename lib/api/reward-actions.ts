@@ -33,6 +33,14 @@ export async function renameReward(tab: RewardTab, rewardId: string, name: strin
   await unwrap(apiClient.patch<ApiResponse<unknown>>(`/admin/rewards/${tab}/${rewardId}`, { description: name }));
 }
 
+/**
+ * Move a reward's activation: only completions from `activatedAt` (ISO) on are considered.
+ * Nothing already assigned changes, and hunters already considered aren't reconsidered.
+ */
+export async function setRewardActivation(tab: RewardTab, rewardId: string, activatedAt: string): Promise<void> {
+  await unwrap(apiClient.patch<ApiResponse<unknown>>(`/admin/rewards/${tab}/${rewardId}`, { activated_at: activatedAt }));
+}
+
 /** Change a streak reward's days or a level-up reward's level (e.g. to fix a typo). */
 export async function changeRewardValue(tab: RewardTab, rewardId: string, value: number): Promise<void> {
   await unwrap(apiClient.patch<ApiResponse<unknown>>(`/admin/rewards/${tab}/${rewardId}`, { value }));
@@ -55,4 +63,12 @@ export async function setRewardCouponActive(couponId: string, isActive: boolean)
 export async function deleteRewardCoupon(couponId: string): Promise<boolean> {
   const { deleted } = await unwrap(apiClient.delete<ApiResponse<{ deleted: boolean }>>(`/admin/rewards/coupons/${couponId}`));
   return deleted;
+}
+
+/**
+ * "Set chances": every active coupon's chance (%) on this reward in one save.
+ * They can add up to at most 100; the rest is unallocated (no coupon).
+ */
+export async function setRewardCouponChances(tab: RewardTab, rewardId: string, chances: { id: string; chance_percent: number }[]): Promise<void> {
+  await unwrap(apiClient.put<ApiResponse<unknown>>(`/admin/rewards/${tab}/${rewardId}/chances`, { chances }));
 }

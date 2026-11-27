@@ -79,7 +79,10 @@ export type CouponOverview = {
 export type CouponActivityEntry = {
   id: string;
   code: string;
+  /** The partner (reward_partners). "Not assigned" when the coupon has none — coupons have no partner field of their own. */
   partner: string;
+  /** The coupon's title, e.g. "HunterX 20". Older backends don't send it. */
+  couponTitle?: string;
   userName: string;
   action: 'issued' | 'redeemed' | 'expired';
   date: string;
