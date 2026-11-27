@@ -12,6 +12,7 @@ import type { Task } from '@/types/task';
 import { recurrenceLabel, TASK_TYPE_GROUP_LABEL, taskTypeGroup, taskTypeLabel } from '@/lib/task-labels';
 import { Search, ListChecks } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
+import { regionsLabel } from '@/lib/regions';
 
 export function TasksTable({ tasks }: { tasks: Task[] }) {
   const [query, setQuery] = React.useState('');
@@ -80,6 +81,11 @@ export function TasksTable({ tasks }: { tasks: Task[] }) {
                   {task.isPaid && (
                     <Badge variant="warning" className="text-[10px] px-1.5 py-0.5 font-mono">
                       ₹{task.price}
+                    </Badge>
+                  )}
+                  {task.regions.length > 0 && (
+                    <Badge variant="muted" className="text-[10px] px-1.5 py-0.5" title={regionsLabel(task.regions, 20)}>
+                      {regionsLabel(task.regions, 1)}
                     </Badge>
                   )}
                 </div>

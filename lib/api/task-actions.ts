@@ -44,6 +44,7 @@ function toTaskPayload(input: TaskInput) {
     recurrence_days: input.recurrenceDays,
     is_paid: Boolean(input.isPaid),
     price: input.isPaid && input.price != null ? Number(input.price) : undefined,
+    regions: input.regions,
   };
 }
 

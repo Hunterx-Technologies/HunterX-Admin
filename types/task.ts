@@ -47,6 +47,8 @@ export type Task = {
   specialRewardId: string | null;
   /** Photos the hunter must upload (0 = no proof; 1–5). Proof is reviewed before XP is paid. */
   proofCount: number;
+  /** ISO 3166-1 alpha-2 countries the task is for; [] = worldwide. A hunter's country is their phone's time zone's. */
+  regions: string[];
 };
 
 // Only DAILY_ADMIN/WEEKLY/MONTHLY are admin-creatable — DAILY_FIXED routines are
@@ -78,6 +80,8 @@ export type TaskInput = {
   specialRewardId: string | null;
   /** 0 = no proof; 1–5 photos required. */
   proofCount: number;
+  /** ISO country codes; [] = worldwide. */
+  regions: string[];
 };
 
 export type TaskStats = {

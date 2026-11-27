@@ -22,6 +22,8 @@ import type { RewardTrigger } from '@/types/reward';
 import { imageFileError, MAX_IMAGE_LABEL } from '@/lib/upload-limits';
 import { todayIn } from '@/lib/admin-timezone';
 import { useAdminTimeZone } from '@/components/admin-timezone';
+import { RegionPicker } from '@/components/region-picker';
+import { regionsLabel } from '@/lib/regions';
 
 // Mirrors adminTaskService.js#XP_CAP — daily admin-authored tasks cap at 10
 // XP, weekly quests at 70, monthly at 300 — keeping admin-created tasks in line
@@ -53,6 +55,7 @@ const DEFAULT_FORM: TaskInput = {
   currency: 'INR',
   specialRewardId: null,
   proofCount: 0,
+  regions: [],
 };
 
 function toDateInput(value: string | null) {
@@ -95,6 +98,7 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
           currency: initialTask.currency || 'INR',
           specialRewardId: initialTask.specialRewardId,
           proofCount: initialTask.proofCount,
+          regions: initialTask.regions,
         }
       : DEFAULT_FORM
   );
@@ -103,6 +107,9 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
   const [femaleFilePreview, setFemaleFilePreview] = React.useState<string | null>(null);
   // Shown under the upload box itself; the form-level error sits at the bottom of the page, out of view.
   const [imageErrors, setImageErrors] = React.useState<Record<'male' | 'female', string | null>>({ male: null, female: null });
+  // Worldwide vs specific regions; "specific" with nothing picked yet is
+  // allowed while editing but can't be saved.
+  const [regionLimited, setRegionLimited] = React.useState(Boolean(initialTask?.regions.length));
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -181,6 +188,8 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
   // default, and each hunter can turn it off (decided by the backend).
   const isRoutine = form.taskType === 'DAILY_ADMIN' && form.isRecurring && !form.isPaid;
   const isPartialXpValid = !form.allowsPartial || ((form.xpReward ?? 0) >= 2);
+  const isRegionValid = !regionLimited || form.regions.length > 0;
+  const regions = regionLimited ? form.regions : [];
 
   const isValid = builtIn
     ? form.title.trim().length > 0 &&
@@ -203,7 +212,8 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
     !!form.startDate &&
     !startDateError &&
     isEndDateValid &&
-    isPriceValid;
+    isPriceValid &&
+    isRegionValid;
 
   // Saving asks the admin to recheck first: once hunters get the task it
   // can't be deleted any more (only deactivated), and edits reach them straight away.
@@ -255,6 +265,8 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
         if (form.isPaid && form.price != null) fd.append('price', String(form.price));
         fd.append('special_reward_id', form.specialRewardId ?? 'none');
         fd.append('proof_count', String(form.proofCount));
+        // An empty multipart field reads as "unchanged", so worldwide is spelled out.
+        fd.append('regions', regions.length ? regions.join(',') : 'worldwide');
 
         if (form.imageMaleFile) {
           fd.append('image_male', form.imageMaleFile);
@@ -271,7 +283,7 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
 
         payload = fd;
       } else {
-        payload = form;
+        payload = { ...form, regions };
       }
 
       if (initialTask) {
@@ -518,6 +530,27 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
       </Card>
       )}
 
+      {/* Region */}
+      {!builtIn && (
+      <Card className="space-y-5">
+        <SectionHeader
+          title="Region"
+          description="Who can get this task. Pick whole continents, single countries, or a mix. A hunter's country is the one their phone's time zone is in."
+        />
+        <RegionPicker
+          value={form.regions}
+          onChange={(codes) => update('regions', codes)}
+          limited={regionLimited}
+          onLimitedChange={setRegionLimited}
+        />
+        {form.isPaid && regionLimited && (
+          <p className="text-[11px] text-ink-faint">
+            The locked offer, its pushes and checkout are only shown in these regions. Hunters who already bought it keep it.
+          </p>
+        )}
+      </Card>
+      )}
+
       {/* 4. Completion Criteria & XP */}
       <Card className="space-y-5">
         <SectionHeader title="Completion Criteria" description="What counts as done, and the XP it earns." />
@@ -685,6 +718,8 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
               {!builtIn && (<>
               <dt className="text-ink-faint">Dates</dt>
               <dd className="text-ink">{form.startDate || '—'}{form.endDate ? ` → ${form.endDate}` : form.isRecurring ? ' → no end' : ''}</dd>
+              <dt className="text-ink-faint">Region</dt>
+              <dd className="text-ink">{regionsLabel(regions, 4)}</dd>
               <dt className="text-ink-faint">Price</dt>
               <dd className="text-ink">{form.isPaid ? `₹${form.price ?? 0}` : 'Free'}</dd>
               <dt className="text-ink-faint">Proof</dt>

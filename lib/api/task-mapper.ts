@@ -45,5 +45,6 @@ export function mapRawTaskToTask(raw: any): Task {
     canDelete: raw.can_delete === true,
     specialRewardId: raw.special_reward_id != null ? String(raw.special_reward_id) : null,
     proofCount: Number(raw.proof_count ?? 0),
+    regions: Array.isArray(raw.regions) ? raw.regions.map(String) : [],
   };
 }

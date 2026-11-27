@@ -14,6 +14,7 @@ import { deleteTask, setTaskActive } from '@/lib/api/task-actions';
 import { unwrapAction } from '@/lib/api/action-result';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { formatDate } from '@/lib/utils';
+import { regionsLabel } from '@/lib/regions';
 
 export function TaskDetailClient({
   task,
@@ -143,6 +144,7 @@ export function TaskDetailClient({
         <Field label="Tag" value={task.tag} />
         <Field label="Type" value={`${taskTypeLabel(task.taskType)} · ${recurrenceLabel(task.isRecurring)}`} />
         <Field label="Pricing" value={task.isPaid ? `₹${task.price} (${task.currency || 'INR'})` : 'Free'} />
+        <Field label="Region" value={regionsLabel(task.regions, 6)} />
         <Field label="Target" value={task.targetValue != null && task.targetUnit ? `${task.targetValue} ${task.targetUnit}` : 'None'} />
         <Field label="XP Reward" value={`${task.xpReward} XP`} />
         <Field label="Created" value={formatDate(task.createdAt) || '—'} />
