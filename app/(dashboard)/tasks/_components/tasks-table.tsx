@@ -78,11 +78,6 @@ export function TasksTable({ tasks }: { tasks: Task[] }) {
                   <Link href={`/tasks/${task.id}`} className="font-medium text-ink hover:text-accent-ink transition-colors">
                     {task.title}
                   </Link>
-                  {task.isPaid && (
-                    <Badge variant="warning" className="text-[10px] px-1.5 py-0.5 font-mono">
-                      ₹{task.price}
-                    </Badge>
-                  )}
                   {task.regions.length > 0 && (
                     <Badge variant="muted" className="text-[10px] px-1.5 py-0.5" title={regionsLabel(task.regions, 20)}>
                       {regionsLabel(task.regions, 1)}

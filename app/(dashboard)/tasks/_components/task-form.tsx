@@ -50,9 +50,6 @@ const DEFAULT_FORM: TaskInput = {
   allowsPartial: false,
   xpPartial: null,
   xpReward: null,
-  isPaid: false,
-  price: null,
-  currency: 'INR',
   specialRewardId: null,
   proofCount: 0,
   regions: [],
@@ -93,9 +90,6 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
           allowsPartial: initialTask.allowsPartial,
           xpPartial: initialTask.xpPartial,
           xpReward: initialTask.xpReward,
-          isPaid: Boolean(initialTask.isPaid),
-          price: initialTask.price != null ? Number(initialTask.price) : null,
-          currency: initialTask.currency || 'INR',
           specialRewardId: initialTask.specialRewardId,
           proofCount: initialTask.proofCount,
           regions: initialTask.regions,
@@ -167,12 +161,6 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
   const hasMaleImage = Boolean(form.imageMaleFile || (form.imageUrlMale && form.imageUrlMale.trim().length > 0));
   const hasFemaleImage = Boolean(form.imageFemaleFile || (form.imageUrlFemale && form.imageUrlFemale.trim().length > 0));
 
-  const isPriceValid = !form.isPaid || (
-    form.price != null &&
-    form.price > 0 &&
-    /^\d+(\.\d{1,2})?$/.test(String(form.price))
-  );
-
   // Same date rules as the backend (adminTaskService#buildTaskData): a start
   // date can't be in the past (admin's own calendar) unless it's an existing task's unchanged
   // start, and the end can't come before the start. Dates are 'YYYY-MM-DD',
@@ -183,10 +171,10 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
     form.startDate && !startUnchanged && form.startDate < today ? 'Start date can’t be in the past.' : null;
   const endDateError =
     form.startDate && form.endDate && form.endDate < form.startDate ? 'End date can’t be before the start date.' : null;
-  const isEndDateValid = (!form.isPaid || Boolean(form.endDate)) && !endDateError;
-  // Free recurring daily = routine: in every hunter's Daily Routine, on by
+  const isEndDateValid = !endDateError;
+  // Recurring daily = routine: in every hunter's Daily Routine, on by
   // default, and each hunter can turn it off (decided by the backend).
-  const isRoutine = form.taskType === 'DAILY_ADMIN' && form.isRecurring && !form.isPaid;
+  const isRoutine = form.taskType === 'DAILY_ADMIN' && form.isRecurring;
   const isPartialXpValid = !form.allowsPartial || ((form.xpReward ?? 0) >= 2);
   const isRegionValid = !regionLimited || form.regions.length > 0;
   const regions = regionLimited ? form.regions : [];
@@ -212,7 +200,6 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
     !!form.startDate &&
     !startDateError &&
     isEndDateValid &&
-    isPriceValid &&
     isRegionValid;
 
   // Saving asks the admin to recheck first: once hunters get the task it
@@ -261,8 +248,6 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
         fd.append('allows_partial', String(Boolean(form.allowsPartial)));
         if (form.targetValue != null) fd.append('target_value', String(form.targetValue));
         if (form.targetUnit.trim()) fd.append('target_unit', form.targetUnit.trim());
-        fd.append('is_paid', String(Boolean(form.isPaid)));
-        if (form.isPaid && form.price != null) fd.append('price', String(form.price));
         fd.append('special_reward_id', form.specialRewardId ?? 'none');
         fd.append('proof_count', String(form.proofCount));
         // An empty multipart field reads as "unchanged", so worldwide is spelled out.
@@ -447,32 +432,6 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
           )}
         </div>
 
-        {/* Paid Task Switch */}
-        <div className="p-4 rounded-xl border border-line bg-surface-inset/30 space-y-4">
-          <Switch
-            checked={Boolean(form.isPaid)}
-            onCheckedChange={(checked) => update('isPaid', checked)}
-            label="Paid Task (Locked Offer)"
-            description="Users see this task locked with its price during the offer window. Buying unlocks access until the offer end date."
-          />
-
-          {form.isPaid && (
-            <div className="pt-3 border-t border-line/60 animate-in fade-in duration-200">
-              <Input
-                label="Price (INR ₹)"
-                type="number"
-                step="0.01"
-                min="1"
-                placeholder="e.g. 199 or 499"
-                value={form.price ?? ''}
-                onChange={(e) => update('price', e.target.value ? Number(e.target.value) : null)}
-                required
-              />
-              <p className="text-[11px] text-ink-faint mt-1">Enter amount in INR with at most 2 decimal places.</p>
-            </div>
-          )}
-        </div>
-
         {/* Recurring switch */}
         <Switch
           checked={form.isRecurring}
@@ -499,16 +458,15 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
         {/* Date Window */}
         <div className="grid gap-4 sm:grid-cols-2">
           <DatePicker
-            label={form.isPaid ? 'Offer Starts' : 'Start Date'}
+            label="Start Date"
             value={toDateInput(form.startDate)}
             onChange={(e) => update('startDate', e.target.value || null)}
             required
           />
           <DatePicker
-            label={form.isPaid ? 'Offer Ends (access ends for buyers)' : 'End Date'}
+            label="End Date"
             value={toDateInput(form.endDate)}
             onChange={(e) => update('endDate', e.target.value || null)}
-            required={Boolean(form.isPaid)}
           />
         </div>
         {(startDateError || endDateError) && (
@@ -518,8 +476,8 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
           </p>
         )}
 
-        {/* Free one-time task automatic duration hint */}
-        {!form.isPaid && !form.isRecurring && !form.endDate && (
+        {/* One-time task automatic duration hint */}
+        {!form.isRecurring && !form.endDate && (
           <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-lg border border-line bg-surface-inset/30 text-ink-muted text-xs">
             <HelpCircle className="w-4 h-4 text-accent-ink shrink-0" />
             <span>
@@ -543,11 +501,6 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
           limited={regionLimited}
           onLimitedChange={setRegionLimited}
         />
-        {form.isPaid && regionLimited && (
-          <p className="text-[11px] text-ink-faint">
-            The locked offer, its pushes and checkout are only shown in these regions. Hunters who already bought it keep it.
-          </p>
-        )}
       </Card>
       )}
 
@@ -720,8 +673,6 @@ export function TaskForm({ initialTask, specialRewards = [] }: { initialTask?: T
               <dd className="text-ink">{form.startDate || '—'}{form.endDate ? ` → ${form.endDate}` : form.isRecurring ? ' → no end' : ''}</dd>
               <dt className="text-ink-faint">Region</dt>
               <dd className="text-ink">{regionsLabel(regions, 4)}</dd>
-              <dt className="text-ink-faint">Price</dt>
-              <dd className="text-ink">{form.isPaid ? `₹${form.price ?? 0}` : 'Free'}</dd>
               <dt className="text-ink-faint">Proof</dt>
               <dd className="text-ink">{form.proofCount > 0 ? `${form.proofCount} photo${form.proofCount === 1 ? '' : 's'}, reviewed before XP` : 'Not required'}</dd>
               <dt className="text-ink-faint">Special reward</dt>

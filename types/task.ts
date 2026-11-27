@@ -38,9 +38,6 @@ export type Task = {
   rewardEligibility: RewardEligibility;
   status: TaskStatus;
   createdAt: string;
-  isPaid?: boolean;
-  price?: number | string | null;
-  currency?: string | null;
   /** True while no hunter has been assigned, completed, bought or earned XP from it — only then can it be deleted. */
   canDelete: boolean;
   /** Linked special reward (Rewards → Special rewards), or null: completing the task grants a card from it. */
@@ -73,9 +70,6 @@ export type TaskInput = {
   allowsPartial: boolean;
   xpPartial: number | null;
   xpReward: number | null;
-  isPaid?: boolean;
-  price?: number | null;
-  currency?: string;
   /** null = no special reward; the task only gives its XP. */
   specialRewardId: string | null;
   /** 0 = no proof; 1–5 photos required. */

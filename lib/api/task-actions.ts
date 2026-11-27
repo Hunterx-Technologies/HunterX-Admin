@@ -42,8 +42,6 @@ function toTaskPayload(input: TaskInput) {
     xp_partial: xpPartial,
     allows_partial: input.allowsPartial,
     recurrence_days: input.recurrenceDays,
-    is_paid: Boolean(input.isPaid),
-    price: input.isPaid && input.price != null ? Number(input.price) : undefined,
     regions: input.regions,
   };
 }

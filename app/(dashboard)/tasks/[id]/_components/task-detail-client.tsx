@@ -129,13 +129,6 @@ export function TaskDetailClient({
           <h1 className="text-xl font-bold text-ink">{task.title}</h1>
           <Badge variant={task.status === 'active' ? 'success' : 'muted'}>{task.status}</Badge>
           <Badge variant="default">{task.rewardEligibility}</Badge>
-          {task.isPaid ? (
-            <Badge variant="warning" className="font-mono">
-              ₹{task.price} Paid
-            </Badge>
-          ) : (
-            <Badge variant="muted">Free</Badge>
-          )}
         </div>
         <p className="text-sm text-ink-muted">{task.description}</p>
       </Card>
@@ -143,17 +136,16 @@ export function TaskDetailClient({
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Field label="Tag" value={task.tag} />
         <Field label="Type" value={`${taskTypeLabel(task.taskType)} · ${recurrenceLabel(task.isRecurring)}`} />
-        <Field label="Pricing" value={task.isPaid ? `₹${task.price} (${task.currency || 'INR'})` : 'Free'} />
         <Field label="Region" value={regionsLabel(task.regions, 6)} />
         <Field label="Target" value={task.targetValue != null && task.targetUnit ? `${task.targetValue} ${task.targetUnit}` : 'None'} />
         <Field label="XP Reward" value={`${task.xpReward} XP`} />
         <Field label="Created" value={formatDate(task.createdAt) || '—'} />
         <Field
-          label={task.isPaid ? 'Offer starts' : 'Shown to hunters from'}
+          label="Shown to hunters from"
           value={formatDate(task.startDate) || formatDate(task.createdAt) || '—'}
         />
         <Field
-          label={task.isPaid ? 'Offer ends' : 'End date'}
+          label="End date"
           value={task.endDate ? formatDate(task.endDate) : task.isRecurring ? 'No end date (recurring)' : '—'}
         />
         <Field label="Level Target" value={task.levelTarget === 'ALL' ? 'All Levels' : task.levelTarget} />
