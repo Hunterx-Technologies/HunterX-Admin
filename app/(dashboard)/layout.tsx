@@ -50,12 +50,12 @@ const NAV_ITEMS: NavItem[] = [
   { name: 'Users', href: '/users', icon: Users, enabled: true },
   { name: 'Tasks', href: '/tasks', icon: ListChecks, enabled: true },
   { name: 'Rewards & Coupons', href: '/rewards', icon: Gift, enabled: true },
+  { name: 'Notifications', href: '/notifications', icon: Bell, enabled: true },
   { name: 'Leaderboards', href: '/leaderboards', icon: Trophy, enabled: false },
   { name: 'Subscriptions & Billing', href: '/subscriptions', icon: CreditCard, enabled: false },
   { name: 'Referrals', href: '/referrals', icon: Share2, enabled: false },
   { name: 'Feedback & Support', href: '/feedback', icon: MessageSquare, enabled: false },
   { name: 'Cosmetics & Dragons', href: '/cosmetics', icon: Gem, enabled: false },
-  { name: 'Notifications', href: '/notifications', icon: Bell, enabled: true },
   { name: 'Analytics & Reports', href: '/analytics', icon: BarChart3, enabled: false },
   { name: 'Settings & Permissions', href: '/settings', icon: Settings, enabled: false },
 ];
